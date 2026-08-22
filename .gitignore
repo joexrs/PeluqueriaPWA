@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+frontend/.env
+supabase/.branches
+supabase/.temp
+node-red/flows_cred.json
+node-red/.config.runtime.json
+.vscode/*
+!.vscode/extensions.json
+.idea/
