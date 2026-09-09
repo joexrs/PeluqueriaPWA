@@ -1,0 +1,48 @@
+import type { CitaAgenda } from "./types";
+
+export const CITAS_INICIALES: CitaAgenda[] = [
+  {
+    id: "cita-1",
+    day: 24,
+    title: "Corte & Secado",
+    staff: "Elena",
+    category: "hair",
+    time: "09:00 - 10:30",
+    client: "Ana M.",
+    top: 64,
+    left: 14.285,
+  },
+  {
+    id: "cita-2",
+    day: 25,
+    title: "Manicura Gel",
+    staff: "Carlos",
+    category: "nails",
+    time: "11:00 - 12:00",
+    client: "Sofía L.",
+    top: 192,
+    left: 14.285,
+  },
+  {
+    id: "cita-3",
+    day: 26,
+    title: "Limpieza Facial",
+    staff: "Dra. Soto",
+    category: "skin",
+    time: "13:00 - 15:00",
+    client: "Valeria R.",
+    top: 320,
+    left: 28.57,
+  },
+  {
+    id: "cita-4",
+    day: 28,
+    title: "Peinado Evento",
+    staff: "Elena",
+    category: "hair",
+    time: "16:00 - 17:30",
+    client: "Laura P.",
+    top: 448,
+    left: 57.14,
+  },
+];
