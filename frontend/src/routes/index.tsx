@@ -8,6 +8,7 @@ import ProductosPage from "../pages/productos/ProductosPage";
 import ServiciosPage from "../pages/servicios/ServiciosPage";
 import PromocionesPage from "../pages/promociones/PromocionesPage";
 import VentasPage from "../pages/ventas/VentasPage";
+import TrabajadoresPage from "../pages/trabajadores/TrabajadoresPage";
 import UsuariosPage from "../pages/usuarios/UsuariosPage";
 
 export default function AppRoutes() {
@@ -24,6 +25,7 @@ export default function AppRoutes() {
           <Route path="/servicios" element={<ServiciosPage />} />
           <Route path="/promociones" element={<PromocionesPage />} />
           <Route path="/ventas" element={<VentasPage />} />
+          <Route path="/trabajadores" element={<TrabajadoresPage />} />
           <Route path="/usuarios" element={<UsuariosPage />} />
         </Route>
       </Routes>

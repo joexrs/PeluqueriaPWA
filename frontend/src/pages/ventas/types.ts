@@ -1,11 +1,4 @@
-export type MetodoPago = "efectivo" | "tarjeta" | "transferencia";
-
-export interface ServicioCita {
-  id: string;
-  nombre: string;
-  precio: number;
-  duracion: number;
-}
+export type MetodoPago = "efectivo" | "tarjeta" | "transferencia" | "yape" | "plin";
 
 export interface ProductoVenta {
   id: string;
@@ -18,7 +11,12 @@ export interface VentaCita {
   id: string;
   citaId: string;
   clienteNombre: string;
-  servicios: ServicioCita[];
+  servicios: Array<{
+    id: string;
+    nombre: string;
+    precio: number;
+    duracion: number;
+  }>;
   productos: ProductoVenta[];
   metodoPago: MetodoPago | null;
   pagada: boolean;

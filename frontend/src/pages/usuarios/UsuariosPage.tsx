@@ -4,15 +4,20 @@ import {
   eliminarUsuario,
   obtenerUsuarios,
   actualizarUsuario,
+  type RolUsuario,
+  type UsuarioRow,
 } from "./usuariosService";
-import type { RolUsuario, Usuario } from "./types";
 import "./usuarios.css";
 
 interface FormState {
   nombre: string;
   apellido: string;
   email: string;
+  dni: string;
+  telefono: string;
   rol: RolUsuario;
+  color_agenda: string;
+  comision_porcentaje: string;
   activo: boolean;
 }
 
@@ -20,41 +25,58 @@ const formVacio: FormState = {
   nombre: "",
   apellido: "",
   email: "",
-  rol: "empleado",
+  dni: "",
+  telefono: "",
+  rol: "trabajador",
+  color_agenda: "#3B82F6",
+  comision_porcentaje: "0",
   activo: true,
 };
 
 export default function UsuariosPage() {
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(formVacio);
+  const [creando, setCreando] = useState(false);
 
   useEffect(() => {
-    void cargarUsuarios();
-  }, []);
+    let cancelado = false;
 
-  async function cargarUsuarios() {
-    try {
-      setLoading(true);
-      const data = await obtenerUsuarios();
-      setUsuarios(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron cargar los usuarios.");
-    } finally {
-      setLoading(false);
-    }
-  }
+    const cargar = async () => {
+      try {
+        setLoading(true);
+        const data = await obtenerUsuarios();
+        if (!cancelado) {
+          setUsuarios(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelado) {
+          setError(err instanceof Error ? err.message : "No se pudieron cargar los usuarios.");
+        }
+      } finally {
+        if (!cancelado) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void cargar();
+
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   const usuariosFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     if (!q) return usuarios;
 
     return usuarios.filter((usuario) => {
-      const texto = `${usuario.nombre} ${usuario.apellido} ${usuario.email} ${usuario.rol}`.toLowerCase();
+      const texto = `${usuario.nombre} ${usuario.apellido} ${usuario.email} ${usuario.rol} ${usuario.dni ?? ""} ${usuario.telefono ?? ""}`.toLowerCase();
       return texto.includes(q);
     });
   }, [usuarios, busqueda]);
@@ -63,15 +85,20 @@ export default function UsuariosPage() {
     setForm(formVacio);
     setEditandoId(null);
     setError(null);
+    setCreando(true);
   }
 
-  function abrirEdicion(usuario: Usuario) {
+  function abrirEdicion(usuario: UsuarioRow) {
     setEditandoId(usuario.id);
     setForm({
       nombre: usuario.nombre,
       apellido: usuario.apellido,
       email: usuario.email,
+      dni: usuario.dni ?? "",
+      telefono: usuario.telefono ?? "",
       rol: usuario.rol,
+      color_agenda: usuario.color_agenda ?? "#3B82F6",
+      comision_porcentaje: String(usuario.comision_porcentaje ?? 0),
       activo: usuario.activo,
     });
     setError(null);
@@ -89,7 +116,11 @@ export default function UsuariosPage() {
       nombre: form.nombre.trim(),
       apellido: form.apellido.trim(),
       email: form.email.trim(),
+      dni: form.dni.trim() || null,
+      telefono: form.telefono.trim() || null,
       rol: form.rol,
+      color_agenda: form.color_agenda || "#3B82F6",
+      comision_porcentaje: Number(form.comision_porcentaje) || 0,
       activo: form.activo,
     };
 
@@ -102,6 +133,7 @@ export default function UsuariosPage() {
         setUsuarios((prev) => [...prev, creado]);
       }
       resetFormulario();
+      setCreando(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el usuario.");
     }
@@ -145,60 +177,62 @@ export default function UsuariosPage() {
           <div className="empty-icon">⏳</div>
           <strong>Cargando usuarios...</strong>
         </div>
-      ) : usuarios.length === 0 ? (
+      ) : usuarios.length === 0 && !creando ? (
         <div className="empty-state">
           <div className="empty-icon">👥</div>
           <strong>Todavía no hay usuarios registrados</strong>
         </div>
       ) : (
         <div className="usuarios-layout">
-          <div className="panel-table">
-            <table className="tabla-usuarios">
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Rol</th>
-                  <th>Email</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usuariosFiltrados.length === 0 ? (
+          {usuarios.length > 0 && (
+            <div className="panel-table">
+              <table className="tabla-usuarios">
+                <thead>
                   <tr>
-                    <td colSpan={5} className="sin-resultados">
-                      Ningún usuario coincide con "{busqueda}".
-                    </td>
+                    <th>Nombre</th>
+                    <th>Rol</th>
+                    <th>Email</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
                   </tr>
-                ) : (
-                  usuariosFiltrados.map((usuario) => (
-                    <tr key={usuario.id}>
-                      <td data-label="Nombre">{usuario.nombre} {usuario.apellido}</td>
-                      <td data-label="Rol">
-                        <span className={`tag ${usuario.rol}`}>{usuario.rol}</span>
-                      </td>
-                      <td data-label="Email">{usuario.email}</td>
-                      <td data-label="Estado">
-                        <span className={`tag ${usuario.activo ? "activo" : "inactivo"}`}>
-                          {usuario.activo ? "Activo" : "Inactivo"}
-                        </span>
-                      </td>
-                      <td data-label="Acciones">
-                        <div className="acciones-cell">
-                          <button className="btn btn-ghost small" onClick={() => abrirEdicion(usuario)}>
-                            Editar
-                          </button>
-                          <button className="btn btn-danger small" onClick={() => void handleDelete(usuario.id)}>
-                            Eliminar
-                          </button>
-                        </div>
+                </thead>
+                <tbody>
+                  {usuariosFiltrados.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="sin-resultados">
+                        Ningún usuario coincide con "{busqueda}".
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    usuariosFiltrados.map((usuario) => (
+                      <tr key={usuario.id}>
+                        <td data-label="Nombre">{usuario.nombre} {usuario.apellido}</td>
+                        <td data-label="Rol">
+                          <span className={`tag ${usuario.rol}`}>{usuario.rol}</span>
+                        </td>
+                        <td data-label="Email">{usuario.email}</td>
+                        <td data-label="Estado">
+                          <span className={`tag ${usuario.activo ? "activo" : "inactivo"}`}>
+                            {usuario.activo ? "Activo" : "Inactivo"}
+                          </span>
+                        </td>
+                        <td data-label="Acciones">
+                          <div className="acciones-cell">
+                            <button className="btn btn-ghost small" onClick={() => abrirEdicion(usuario)}>
+                              Editar
+                            </button>
+                            <button className="btn btn-danger small" onClick={() => void handleDelete(usuario.id)}>
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <form className="usuario-form" onSubmit={handleSubmit}>
             <h2>{editandoId ? "Editar usuario" : "Nuevo usuario"}</h2>
@@ -231,15 +265,54 @@ export default function UsuariosPage() {
             </label>
 
             <label>
+              DNI
+              <input
+                type="text"
+                value={form.dni}
+                onChange={(e) => setForm((prev) => ({ ...prev, dni: e.target.value }))}
+              />
+            </label>
+
+            <label>
+              Teléfono
+              <input
+                type="tel"
+                value={form.telefono}
+                onChange={(e) => setForm((prev) => ({ ...prev, telefono: e.target.value }))}
+              />
+            </label>
+
+            <label>
               Rol
               <select
                 value={form.rol}
                 onChange={(e) => setForm((prev) => ({ ...prev, rol: e.target.value as RolUsuario }))}
               >
                 <option value="admin">Admin</option>
-                <option value="empleado">Empleado</option>
+                <option value="trabajador">Trabajador</option>
                 <option value="recepcionista">Recepcionista</option>
               </select>
+            </label>
+
+            <label>
+              Color de agenda
+              <input
+                type="color"
+                value={form.color_agenda}
+                onChange={(e) => setForm((prev) => ({ ...prev, color_agenda: e.target.value }))}
+              />
+            </label>
+
+            <label>
+              Comisión (%)
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={form.comision_porcentaje}
+                onChange={(e) => setForm((prev) => ({ ...prev, comision_porcentaje: e.target.value }))}
+              />
             </label>
 
             <label>
@@ -254,7 +327,10 @@ export default function UsuariosPage() {
             </label>
 
             <div className="form-actions">
-              <button type="button" className="btn btn-ghost" onClick={resetFormulario}>
+              <button type="button" className="btn btn-ghost" onClick={() => {
+                setCreando(false);
+                setEditandoId(null);
+              }}>
                 Cancelar
               </button>
               <button type="submit" className="btn btn-primary">
