@@ -106,6 +106,45 @@ button {
   background: linear-gradient(135deg, #fff9fa 0%, #f8f4f2 100%);
 }
 
+@media (max-width: 640px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .login-visual {
+    display: none;
+  }
+
+  .login-panel {
+    padding: clamp(24px, 8vw, 48px) clamp(20px, 6vw, 40px);
+    justify-content: flex-start;
+    padding-top: clamp(40px, 10vw, 72px);
+  }
+
+  .login-brand h1 {
+    font-size: clamp(20px, 5vw, 26px);
+  }
+
+  .login-copy h2 {
+    font-size: clamp(24px, 6vw, 32px);
+  }
+
+  .login-form {
+    max-width: 100%;
+  }
+
+  .login-form input {
+    padding: 13px 14px;
+    font-size: 16px; /* evita zoom en iOS */
+  }
+
+  .login-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
 .login-panel {
   display: flex;
   flex-direction: column;

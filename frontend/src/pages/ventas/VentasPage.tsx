@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { obtenerProductos } from "../productos/productosService";
+import type { ProductoConLotes } from "../productos/types";
 import { agregarProductoVenta, obtenerVentaPorCita, registrarPago } from "./ventasService";
 import type { MetodoPago, ProductoVenta, VentaCita } from "./types";
 import "./ventas.css";
@@ -7,23 +9,26 @@ const CITA_ID = "cita-101";
 
 export default function VentasPage() {
   const [venta, setVenta] = useState<VentaCita | null>(null);
+  const [productosCatalogo, setProductosCatalogo] = useState<ProductoConLotes[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [productoId, setProductoId] = useState("p1");
+  const [productoId, setProductoId] = useState("");
   const [cantidad, setCantidad] = useState(1);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("tarjeta");
   const [montoRecibido, setMontoRecibido] = useState(0);
 
-  useEffect(() => {
-    void cargarVenta();
-  }, []);
-
   async function cargarVenta() {
     try {
       setLoading(true);
-      const data = await obtenerVentaPorCita(CITA_ID);
-      setVenta(data);
-      setMontoRecibido(data?.total ?? 0);
+      const [ventaData, productosData] = await Promise.all([
+        obtenerVentaPorCita(CITA_ID),
+        obtenerProductos({ soloActivos: true }),
+      ]);
+
+      setVenta(ventaData);
+      setProductosCatalogo(productosData);
+      setProductoId((actual) => actual || productosData[0]?.id || "");
+      setMontoRecibido(ventaData?.total ?? 0);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo cargar la venta.");
@@ -31,6 +36,10 @@ export default function VentasPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    void cargarVenta();
+  }, []);
 
   const totalServicios = useMemo(
     () => venta?.servicios.reduce((sum, servicio) => sum + servicio.precio, 0) ?? 0,
@@ -44,6 +53,8 @@ export default function VentasPage() {
 
   async function handleAgregarProducto(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!venta || !productoId) return;
 
     try {
       const actualizada = await agregarProductoVenta(CITA_ID, productoId, cantidad);
@@ -119,10 +130,12 @@ export default function VentasPage() {
           <h3>Productos adicionales</h3>
           <form className="producto-form" onSubmit={handleAgregarProducto}>
             <select value={productoId} onChange={(e) => setProductoId(e.target.value)}>
-              <option value="p1">Tinte rubio ceniza</option>
-              <option value="p2">Shampoo hidratante</option>
-              <option value="p3">Cera moldeadora</option>
-              <option value="p4">Esmalte rojo clásico</option>
+              <option value="">Selecciona producto</option>
+              {productosCatalogo.map((producto) => (
+                <option key={producto.id} value={producto.id}>
+                  {producto.nombre}
+                </option>
+              ))}
             </select>
 
             <input
@@ -132,7 +145,7 @@ export default function VentasPage() {
               onChange={(e) => setCantidad(Number(e.target.value || 1))}
             />
 
-            <button className="btn btn-primary" type="submit">
+            <button className="btn btn-primary" type="submit" disabled={!productoId}>
               + Añadir
             </button>
           </form>
@@ -177,6 +190,8 @@ export default function VentasPage() {
                 <option value="efectivo">Efectivo</option>
                 <option value="tarjeta">Tarjeta</option>
                 <option value="transferencia">Transferencia</option>
+                <option value="yape">Yape</option>
+                <option value="plin">Plin</option>
               </select>
             </label>
 

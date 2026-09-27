@@ -1,11 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Calendar, Views, dateFnsLocalizer } from "react-big-calendar";
 import type { View } from "react-big-calendar";
 import { addDays, format, getDay, parse, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
-import { obtenerCitasPorFiltro } from "./citasService";
-import type { CitaAgenda, CategoriaCita, Especialista } from "./types";
+import { obtenerClientes, type ClienteRow } from "../clientes/clientesService";
+import { obtenerProductos } from "../productos/productosService";
+import type { ProductoConLotes } from "../productos/types";
+import { obtenerServicios, type ServicioRow } from "../servicios/serviciosService";
+import { obtenerUsuarios, type UsuarioRow } from "../usuarios/usuariosService";
+import { crearVenta } from "../ventas/ventasService";
+import { actualizarCita, crearCita, obtenerCitaPorId, obtenerCitasPorFiltro } from "./citasService";
+import type { CitaAgenda, CitaConDetalle, CategoriaCita, Especialista } from "./types";
 
 const STAFF_OPTIONS: Especialista[] = ["Todos", "Elena", "Carlos", "Dra. Soto"];
 const SERVICE_OPTIONS: CategoriaCita[] = ["hair", "nails", "skin"];
@@ -40,12 +46,30 @@ function parseTimeRange(range: string) {
 
 export default function CitasPage() {
   const [citas, setCitas] = useState<CitaAgenda[]>([]);
+  const [clientes, setClientes] = useState<ClienteRow[]>([]);
+  const [trabajadores, setTrabajadores] = useState<UsuarioRow[]>([]);
+  const [serviciosCatalogo, setServiciosCatalogo] = useState<ServicioRow[]>([]);
+  const [productosCatalogo, setProductosCatalogo] = useState<ProductoConLotes[]>([]);
+  const [selectedCita, setSelectedCita] = useState<CitaConDetalle | null>(null);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date(2023, 9, 25));
   const [view, setView] = useState<View>(Views.WEEK);
   const [selectedStaff, setSelectedStaff] = useState<Especialista>("Todos");
   const [selectedServices, setSelectedServices] = useState<CategoriaCita[]>(["hair", "nails", "skin"]);
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [extraServicioId, setExtraServicioId] = useState("");
+  const [productoId, setProductoId] = useState("");
+  const [cantidadProducto, setCantidadProducto] = useState(1);
+  const [formulario, setFormulario] = useState({
+    clienteId: "",
+    trabajadorId: "",
+    fecha: format(new Date(), "yyyy-MM-dd"),
+    horaInicio: "09:00",
+    horaFin: "10:00",
+    servicioId: "",
+  });
 
   const selectedDay = selectedDate.getDate();
 
@@ -55,14 +79,32 @@ export default function CitasPage() {
     async function cargarCitas() {
       try {
         setLoading(true);
-        const data = await obtenerCitasPorFiltro({
-          day: selectedDay,
-          staff: selectedStaff,
-          services: selectedServices,
-        });
+        const [data, clientesData, serviciosData, usuariosData, productosData] = await Promise.all([
+          obtenerCitasPorFiltro({
+            day: selectedDay,
+            staff: selectedStaff,
+            services: selectedServices,
+          }),
+          obtenerClientes(),
+          obtenerServicios(),
+          obtenerUsuarios(true),
+          obtenerProductos({ soloActivos: true }),
+        ]);
 
         if (!cancelled) {
           setCitas(data);
+          setClientes(clientesData);
+          setServiciosCatalogo(serviciosData);
+          setTrabajadores(usuariosData);
+          setProductosCatalogo(productosData);
+
+          setFormulario((actual) => ({
+            ...actual,
+            clienteId: actual.clienteId || clientesData[0]?.id || "",
+            trabajadorId: actual.trabajadorId || usuariosData[0]?.id || "",
+            servicioId: actual.servicioId || serviciosData[0]?.id || "",
+          }));
+          setProductoId((prev) => prev || productosData[0]?.id || "");
           setError(null);
         }
       } catch (err) {
@@ -107,6 +149,144 @@ export default function CitasPage() {
       }),
     [citas],
   );
+
+  async function handleCrearCita(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const servicioSeleccionado = serviciosCatalogo.find((servicio) => servicio.id === formulario.servicioId);
+
+    if (!formulario.clienteId || !formulario.fecha || !formulario.horaInicio || !formulario.horaFin || !servicioSeleccionado) {
+      setError("Completa cliente, servicio, fecha y horario antes de guardar la cita.");
+      return;
+    }
+
+    try {
+      setCreating(true);
+      setError(null);
+
+      await crearCita({
+        cliente_id: formulario.clienteId,
+        trabajador_id: formulario.trabajadorId || null,
+        fecha: formulario.fecha,
+        hora_inicio: formulario.horaInicio,
+        hora_fin: formulario.horaFin,
+        estado: "PENDIENTE",
+        origen: "PWA_RECEPCION",
+        notas: null,
+        servicios: [
+          {
+            servicio_id: servicioSeleccionado.id,
+            precio_aplicado: Number(servicioSeleccionado.precio_base ?? 0),
+            duracion_minutos: Number(servicioSeleccionado.duracion_minutos ?? 0),
+          },
+        ],
+      });
+
+      setMostrarFormulario(false);
+      setFormulario({
+        clienteId: clientes[0]?.id ?? "",
+        trabajadorId: trabajadores[0]?.id ?? "",
+        fecha: format(new Date(), "yyyy-MM-dd"),
+        horaInicio: "09:00",
+        horaFin: "10:00",
+        servicioId: serviciosCatalogo[0]?.id ?? "",
+      });
+      setSelectedDate(new Date(formulario.fecha));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar la cita.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleSelectEvent(event: { id: string }) {
+    try {
+      const cita = await obtenerCitaPorId(event.id);
+      setSelectedCita(cita);
+      setExtraServicioId("");
+      if (!productoId && productosCatalogo[0]) {
+        setProductoId(productosCatalogo[0].id);
+      }
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo abrir la cita.");
+    }
+  }
+
+  async function handleAgregarServicioExtra() {
+    if (!selectedCita || !extraServicioId) return;
+
+    const servicioSeleccionado = serviciosCatalogo.find((servicio) => servicio.id === extraServicioId);
+    if (!servicioSeleccionado) return;
+
+    try {
+      const serviciosActuales = selectedCita.servicios.map((servicio) => ({
+        servicio_id: servicio.servicio_id,
+        precio_aplicado: servicio.precio_aplicado,
+        duracion_minutos: servicio.duracion_minutos,
+      }));
+
+      const nuevaCita = await actualizarCita(selectedCita.id, {
+        servicios: [
+          ...serviciosActuales,
+          {
+            servicio_id: servicioSeleccionado.id,
+            precio_aplicado: Number(servicioSeleccionado.precio_base ?? 0),
+            duracion_minutos: Number(servicioSeleccionado.duracion_minutos ?? 0),
+          },
+        ],
+      });
+
+      setSelectedCita(nuevaCita);
+      setExtraServicioId("");
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo añadir el servicio adicional.");
+    }
+  }
+
+  async function handleAgregarProductoVenta() {
+    if (!selectedCita || !productoId) return;
+
+    const productoSeleccionado = productosCatalogo.find((producto) => producto.id === productoId);
+    if (!productoSeleccionado) return;
+
+    try {
+      const totalPrecio = Number(productoSeleccionado.precio_venta_publico ?? 0) * cantidadProducto;
+
+      await crearVenta({
+        cliente_id: selectedCita.cliente_id,
+        cita_id: selectedCita.id,
+        vendedor_usuario_id: selectedCita.trabajador_id ?? null,
+        servicios: selectedCita.servicios.map((servicio) => ({
+          servicio_id: servicio.servicio_id,
+          trabajador_id: selectedCita.trabajador_id ?? null,
+          precio_unitario: servicio.precio_aplicado,
+        })),
+        productos: [
+          {
+            producto_id: productoSeleccionado.id,
+            lote_id: productoSeleccionado.lotes[0]?.id ?? null,
+            cantidad: cantidadProducto,
+            precio_unitario: Number(productoSeleccionado.precio_venta_publico ?? 0),
+          },
+        ],
+        pagos: [
+          {
+            metodo_pago: "EFECTIVO",
+            monto: totalPrecio,
+            numero_operacion: null,
+          },
+        ],
+      });
+
+      setProductoId(productosCatalogo[0]?.id ?? "");
+      setCantidadProducto(1);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo añadir el producto a la venta.");
+    }
+  }
 
   function toggleService(service: CategoriaCita) {
     setSelectedServices((current) =>
@@ -169,6 +349,76 @@ export default function CitasPage() {
     <div className="calendar-page">
       <div className="calendar-shell">
         <div className="calendar-main">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ margin: 0 }}>Agenda</h3>
+            <button type="button" className="btn btn-primary" onClick={() => setMostrarFormulario((actual) => !actual)}>
+              {mostrarFormulario ? "Cancelar" : "+ Nueva cita"}
+            </button>
+          </div>
+
+          {mostrarFormulario && (
+            <form onSubmit={handleCrearCita} style={{ marginBottom: 18, display: "grid", gap: 12, background: "#f7f7f8", padding: 16, borderRadius: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span>Cliente</span>
+                  <select value={formulario.clienteId} onChange={(event) => setFormulario((actual) => ({ ...actual, clienteId: event.target.value }))}>
+                    <option value="">Selecciona cliente</option>
+                    {clientes.map((cliente) => (
+                      <option key={cliente.id} value={cliente.id}>
+                        {cliente.nombre} {cliente.apellido ?? ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span>Trabajador</span>
+                  <select value={formulario.trabajadorId} onChange={(event) => setFormulario((actual) => ({ ...actual, trabajadorId: event.target.value }))}>
+                    <option value="">Sin asignar</option>
+                    {trabajadores.map((trabajador) => (
+                      <option key={trabajador.id} value={trabajador.id}>
+                        {trabajador.nombre} {trabajador.apellido}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span>Fecha</span>
+                  <input type="date" value={formulario.fecha} onChange={(event) => setFormulario((actual) => ({ ...actual, fecha: event.target.value }))} />
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span>Hora inicio</span>
+                  <input type="time" value={formulario.horaInicio} onChange={(event) => setFormulario((actual) => ({ ...actual, horaInicio: event.target.value }))} />
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span>Hora fin</span>
+                  <input type="time" value={formulario.horaFin} onChange={(event) => setFormulario((actual) => ({ ...actual, horaFin: event.target.value }))} />
+                </label>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span>Servicio</span>
+                  <select value={formulario.servicioId} onChange={(event) => setFormulario((actual) => ({ ...actual, servicioId: event.target.value }))}>
+                    <option value="">Selecciona servicio</option>
+                    {serviciosCatalogo.map((servicio) => (
+                      <option key={servicio.id} value={servicio.id}>
+                        {servicio.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button type="submit" className="btn btn-primary" disabled={creating}>
+                  {creating ? "Guardando..." : "Guardar cita"}
+                </button>
+              </div>
+            </form>
+          )}
+
           <Calendar
             localizer={localizer}
             culture="es"
@@ -181,6 +431,7 @@ export default function CitasPage() {
             views={['month', 'week', 'day']}
             onNavigate={(nextDate: Date) => setSelectedDate(nextDate)}
             onView={(nextView: View) => setView(nextView)}
+            onSelectEvent={handleSelectEvent}
             eventPropGetter={eventStyleGetter}
             messages={{
               next: "Siguiente",
@@ -192,6 +443,57 @@ export default function CitasPage() {
               agenda: "Agenda",
             }}
           />
+
+          {selectedCita && (
+            <div style={{ marginTop: 18, display: "grid", gap: 16, background: "#f5f5f5", padding: 16, borderRadius: 12 }}>
+              <div>
+                <h3 style={{ margin: 0 }}>Cita seleccionada</h3>
+                <p style={{ margin: "6px 0 0" }}>
+                  {selectedCita.cliente ? `${selectedCita.cliente.nombre} ${selectedCita.cliente.apellido ?? ""}`.trim() : "Cliente"} · {selectedCita.fecha} · {selectedCita.hora_inicio.slice(0, 5)} - {selectedCita.hora_fin.slice(0, 5)}
+                </p>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span>Agregar servicio extra</span>
+                    <select value={extraServicioId} onChange={(event) => setExtraServicioId(event.target.value)}>
+                      <option value="">Selecciona servicio</option>
+                      {serviciosCatalogo.map((servicio) => (
+                        <option key={servicio.id} value={servicio.id}>
+                          {servicio.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" className="btn btn-primary" onClick={() => void handleAgregarServicioExtra()} disabled={!extraServicioId}>
+                    Añadir servicio
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gap: 8 }}>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span>Producto para usar</span>
+                    <select value={productoId} onChange={(event) => setProductoId(event.target.value)}>
+                      <option value="">Selecciona producto</option>
+                      {productosCatalogo.map((producto) => (
+                        <option key={producto.id} value={producto.id}>
+                          {producto.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span>Cantidad</span>
+                    <input type="number" min={1} value={cantidadProducto} onChange={(event) => setCantidadProducto(Number(event.target.value || 1))} />
+                  </label>
+                  <button type="button" className="btn btn-primary" onClick={() => void handleAgregarProductoVenta()} disabled={!productoId}>
+                    Añadir producto a venta
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <aside className="calendar-filters">
