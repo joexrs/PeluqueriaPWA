@@ -17,28 +17,32 @@ export default function VentasPage() {
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("tarjeta");
   const [montoRecibido, setMontoRecibido] = useState(0);
 
-  async function cargarVenta() {
-    try {
-      setLoading(true);
-      const [ventaData, productosData] = await Promise.all([
-        obtenerVentaPorCita(CITA_ID),
-        obtenerProductos({ soloActivos: true }),
-      ]);
-
-      setVenta(ventaData);
-      setProductosCatalogo(productosData);
-      setProductoId((actual) => actual || productosData[0]?.id || "");
-      setMontoRecibido(ventaData?.total ?? 0);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar la venta.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    void cargarVenta();
+    let cancelled = false;
+    async function load() {
+      if (cancelled) return;
+      try {
+        setLoading(true);
+        const [ventaData, productosData] = await Promise.all([
+          obtenerVentaPorCita(CITA_ID),
+          obtenerProductos({ soloActivos: true }),
+        ]);
+
+        if (cancelled) return;
+        setVenta(ventaData);
+        setProductosCatalogo(productosData);
+        setProductoId((actual) => actual || productosData[0]?.id || "");
+        setMontoRecibido(ventaData?.total ?? 0);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "No se pudo cargar la venta.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   const totalServicios = useMemo(
