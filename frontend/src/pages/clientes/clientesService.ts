@@ -3,6 +3,21 @@
  */
 import { supabase } from "../../lib/supabaseClient";
 
+/** Tipo para la respuesta cruda de Supabase */
+interface ClienteRaw {
+  id: unknown;
+  nombre: unknown;
+  apellido: unknown;
+  telefono: unknown;
+  email: unknown;
+  fecha_nacimiento: unknown;
+  notas_preferencias: unknown;
+  total_visitas: unknown;
+  activo: unknown;
+  created_at: unknown;
+  updated_at: unknown;
+}
+
 export interface ClienteRow {
   id: string;
   nombre: string;
@@ -26,19 +41,19 @@ export interface CrearClientePayload {
   notas_preferencias?: string | null;
 }
 
-function mapClienteRow(row: any): ClienteRow {
+function mapClienteRow(row: ClienteRaw): ClienteRow {
   return {
-    id: row.id,
-    nombre: row.nombre,
-    apellido: row.apellido ?? null,
-    telefono: row.telefono ?? "",
-    email: row.email ?? null,
-    fecha_nacimiento: row.fecha_nacimiento ?? null,
-    notas_preferencias: row.notas_preferencias ?? null,
-    total_visitas: row.total_visitas ?? 0,
-    activo: row.activo ?? true,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
+    id: String(row.id ?? ""),
+    nombre: String(row.nombre ?? ""),
+    apellido: row.apellido ? String(row.apellido) : null,
+    telefono: String(row.telefono ?? ""),
+    email: row.email ? String(row.email) : null,
+    fecha_nacimiento: row.fecha_nacimiento ? String(row.fecha_nacimiento) : null,
+    notas_preferencias: row.notas_preferencias ? String(row.notas_preferencias) : null,
+    total_visitas: Number(row.total_visitas ?? 0),
+    activo: Boolean(row.activo ?? true),
+    created_at: row.created_at ? String(row.created_at) : undefined,
+    updated_at: row.updated_at ? String(row.updated_at) : undefined,
   };
 }
 

@@ -3,6 +3,28 @@
  */
 import { supabase } from "../../lib/supabaseClient";
 
+/** Tipo para la respuesta cruda de Supabase */
+interface CategoriaRaw {
+  id: unknown;
+  nombre: unknown;
+  descripcion: unknown;
+  color: unknown;
+}
+
+interface ServicioRaw {
+  id: unknown;
+  categoria_id: unknown;
+  nombre: unknown;
+  descripcion: unknown;
+  precio_base: unknown;
+  duracion_minutos: unknown;
+  tiempo_limpieza_minutos: unknown;
+  aforo_maximo_diario: unknown;
+  aforo_simultaneo_maximo: unknown;
+  activo: unknown;
+  categoria: unknown;
+}
+
 export interface CategoriaServicioRow {
   id: string;
   nombre: string;
@@ -35,19 +57,29 @@ export interface CrearServicioPayload {
   aforo_simultaneo_maximo?: number;
 }
 
-function mapServicioRow(row: any): ServicioRow {
+function mapCategoriaRow(row: CategoriaRaw): CategoriaServicioRow {
   return {
-    id: row.id,
-    categoria_id: row.categoria_id ?? null,
-    nombre: row.nombre,
-    descripcion: row.descripcion ?? null,
-    precio_base: Number(row.precio_base ?? 0),
-    duracion_minutos: Number(row.duracion_minutos ?? 0),
-    tiempo_limpieza_minutos: Number(row.tiempo_limpieza_minutos ?? 0),
-    aforo_maximo_diario: Number(row.aforo_maximo_diario ?? 0),
-    aforo_simultaneo_maximo: Number(row.aforo_simultaneo_maximo ?? 0),
-    activo: row.activo ?? true,
-    categoria: row.categoria ?? null,
+    id: String(row.id ?? ""),
+    nombre: String(row.nombre ?? ""),
+    descripcion: row.descripcion ? String(row.descripcion) : null,
+    color: row.color ? String(row.color) : null,
+  };
+}
+
+function mapServicioRow(raw: ServicioRaw): ServicioRow {
+  const cat = raw.categoria as CategoriaRaw | null;
+  return {
+    id: String(raw.id ?? ""),
+    categoria_id: raw.categoria_id ? String(raw.categoria_id) : null,
+    nombre: String(raw.nombre ?? ""),
+    descripcion: raw.descripcion ? String(raw.descripcion) : null,
+    precio_base: Number(raw.precio_base ?? 0),
+    duracion_minutos: Number(raw.duracion_minutos ?? 0),
+    tiempo_limpieza_minutos: Number(raw.tiempo_limpieza_minutos ?? 0),
+    aforo_maximo_diario: Number(raw.aforo_maximo_diario ?? 0),
+    aforo_simultaneo_maximo: Number(raw.aforo_simultaneo_maximo ?? 0),
+    activo: Boolean(raw.activo ?? true),
+    categoria: cat ? mapCategoriaRow(cat) : null,
   };
 }
 
