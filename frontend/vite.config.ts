@@ -9,12 +9,29 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Peluqueria PWA',
-        short_name: 'Peluqueria',
+        name: 'Peluquería & Estética - Victor Manuel Peluqueros',
+        short_name: 'VM Peluqueros',
+        description: 'Sistema de gestión para Peluquería & Estética - Victor Manuel Peluqueros',
         start_url: '/',
         display: 'standalone',
         theme_color: '#1F4E79',
+        background_color: '#0a0f1a',
+        icons: [
+          {
+            src: '/logo-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+          {
+            src: '/logo-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+        ],
       },
     }),
   ],
 })
+
