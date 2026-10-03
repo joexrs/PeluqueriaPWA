@@ -62,6 +62,37 @@ button {
   font-size: 14px;
 }
 
+/* --- Auth Loading Styles --- */
+.auth-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 16px;
+  background-color: var(--color-bg);
+  color: var(--color-muted);
+  font-family: var(--font-body);
+}
+
+.auth-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(122, 46, 69, 0.2);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: auth-spin 1s linear infinite;
+}
+
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+.auth-error-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: var(--color-muted);
@@ -159,17 +190,13 @@ button {
   margin-bottom: 32px;
 }
 
-.login-brand-mark {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--color-primary);
-  color: white;
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 700;
+.login-brand-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
 }
 
 .login-kicker {
@@ -914,5 +941,254 @@ button {
   .chip {
     flex: 1 1 calc(50% - 8px);
     min-width: 110px;
+  }
+}
+/* Form validation styles */
+.cita-form {
+  margin-bottom: 18px;
+  display: grid;
+  gap: 12px;
+  background: #f7f7f8;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.cita-form .form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.cita-form label {
+  display: grid;
+  gap: 6px;
+  position: relative;
+}
+
+.cita-form label > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cita-form select,
+.cita-form input {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-ink);
+  background: white;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cita-form select:focus,
+.cita-form input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(122, 46, 69, 0.1);
+}
+
+.cita-form label.has-error select,
+.cita-form label.has-error input {
+  border-color: #d93025;
+  background: #fef8f8;
+}
+
+.cita-form label.has-error select:focus,
+.cita-form label.has-error input:focus {
+  box-shadow: 0 0 0 3px rgba(217, 48, 37, 0.1);
+}
+
+.field-error {
+  font-size: 11px;
+  color: #d93025;
+  font-weight: 600;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Responsive form adjustments */
+@media (max-width: 640px) {
+  .cita-form .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid label {
+    margin-bottom: 4px;
+  }
+}
+/* Login form validation styles */
+.login-form label {
+  position: relative;
+}
+
+.login-form label.has-error input {
+  border-color: #d93025;
+  background: #fef8f8;
+}
+
+.login-form label.has-error input:focus {
+  box-shadow: 0 0 0 3px rgba(217, 48, 37, 0.1);
+}
+
+.login-form input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(122, 46, 69, 0.08);
+}
+
+.login-form .field-error {
+  display: block;
+  font-size: 11px;
+  color: #d93025;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* Improved responsive login */
+@media (max-width: 900px) {
+  .login-page {
+    grid-template-columns: 1fr;
+  }
+  
+  .login-visual {
+    display: none;
+  }
+  
+  .login-panel {
+    padding: 32px 24px;
+    min-height: 100vh;
+    justify-content: flex-start;
+    padding-top: 48px;
+  }
+  
+  .login-brand {
+    margin-bottom: 24px;
+  }
+  
+  .login-copy {
+    margin-bottom: 20px;
+  }
+  
+  .login-form {
+    max-width: 100%;
+  }
+  
+  .login-form input {
+    padding: 14px 16px;
+    font-size: 16px;
+  }
+  
+  .login-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-panel {
+    padding: 24px 16px;
+    padding-top: 32px;
+  }
+  
+  .login-brand h1 {
+    font-size: 24px;
+  }
+  
+  .login-copy h2 {
+    font-size: 22px;
+  }
+  
+  .login-form label {
+    margin-bottom: 16px;
+  }
+}
+/* ========================================
+   RESPONSIVE UTILITIES & GLOBAL IMPROVEMENTS
+   ======================================== */
+
+/* Mobile-first responsive adjustments */
+@media (max-width: 640px) {
+  /* Improved page headers */
+  .page-header {
+    margin-bottom: 16px;
+  }
+  
+  .page-header h2 {
+    font-size: 22px;
+  }
+  
+  /* Mobile toolbar */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .toolbar input[type="text"] {
+    width: 100%;
+    min-width: 0;
+  }
+  
+  .toolbar .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Tablet adjustments */
+@media (max-width: 900px) {
+  .dashboard-content {
+    grid-template-columns: 1fr;
+  }
+  
+  .kpis-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .detalle-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+  .kpis-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .panel {
+    padding: 16px;
+  }
+  
+  .row-item {
+    grid-template-columns: auto 1fr;
+    gap: 10px;
+  }
+  
+  .row-meta {
+    flex-wrap: wrap;
+  }
+}
+
+/* Print styles */
+@media print {
+  .topbar,
+  .sidebar,
+  .btn,
+  .toolbar {
+    display: none !important;
+  }
+  
+  .page-content {
+    padding: 0;
+    margin: 0;
   }
 }

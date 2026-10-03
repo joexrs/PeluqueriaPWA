@@ -12,6 +12,7 @@ import { obtenerUsuarios, type UsuarioRow } from "../usuarios/usuariosService";
 import { crearVenta } from "../ventas/ventasService";
 import { actualizarCita, crearCita, obtenerCitaPorId, obtenerCitasPorFiltro } from "./citasService";
 import type { CitaAgenda, CitaConDetalle, CategoriaCita, Especialista } from "./types";
+import { validateTimeRange } from "../../lib/validators";
 
 const STAFF_OPTIONS: Especialista[] = ["Todos", "Elena", "Carlos", "Dra. Soto"];
 const SERVICE_OPTIONS: CategoriaCita[] = ["hair", "nails", "skin"];
@@ -70,6 +71,10 @@ export default function CitasPage() {
     horaFin: "10:00",
     servicioId: "",
   });
+
+  // Form validation state
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
 
   const selectedDay = selectedDate.getDate();
 
@@ -150,15 +155,64 @@ export default function CitasPage() {
     [citas],
   );
 
+  // Validate the form fields
+  function validateForm(): boolean {
+    const errors: Record<string, string> = {};
+
+    // Validate cliente
+    if (!formulario.clienteId) {
+      errors.clienteId = "Selecciona un cliente";
+    }
+
+    // Validate fecha
+    if (!formulario.fecha) {
+      errors.fecha = "La fecha es obligatoria";
+    }
+
+    // Validate time range
+    if (!formulario.horaInicio || !formulario.horaFin) {
+      errors.horaInicio = "El horario es obligatorio";
+    } else {
+      const timeValidation = validateTimeRange(formulario.horaInicio, formulario.horaFin);
+      if (!timeValidation.valid && timeValidation.error) {
+        errors.horaFin = timeValidation.error;
+      }
+    }
+
+    // Validate servicio
+    if (!formulario.servicioId) {
+      errors.servicioId = "Selecciona un servicio";
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
+  // Handle field blur for validation
+  function handleFieldBlur(field: string) {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    validateForm();
+  }
+
   async function handleCrearCita(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const servicioSeleccionado = serviciosCatalogo.find((servicio) => servicio.id === formulario.servicioId);
+    // Mark all fields as touched
+    setTouched({
+      clienteId: true,
+      fecha: true,
+      horaInicio: true,
+      horaFin: true,
+      servicioId: true,
+    });
 
-    if (!formulario.clienteId || !formulario.fecha || !formulario.horaInicio || !formulario.horaFin || !servicioSeleccionado) {
-      setError("Completa cliente, servicio, fecha y horario antes de guardar la cita.");
+    if (!validateForm()) {
+      setError("Por favor, corrige los errores antes de guardar.");
       return;
     }
+
+    const servicioSeleccionado = serviciosCatalogo.find((servicio) => servicio.id === formulario.servicioId);
+    if (!servicioSeleccionado) return;
 
     try {
       setCreating(true);
@@ -357,11 +411,15 @@ export default function CitasPage() {
           </div>
 
           {mostrarFormulario && (
-            <form onSubmit={handleCrearCita} style={{ marginBottom: 18, display: "grid", gap: 12, background: "#f7f7f8", padding: 16, borderRadius: 12 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span>Cliente</span>
-                  <select value={formulario.clienteId} onChange={(event) => setFormulario((actual) => ({ ...actual, clienteId: event.target.value }))}>
+            <form onSubmit={handleCrearCita} className="cita-form">
+              <div className="form-grid">
+                <label className={formErrors.clienteId && touched.clienteId ? "has-error" : ""}>
+                  <span>Cliente *</span>
+                  <select 
+                    value={formulario.clienteId} 
+                    onChange={(event) => setFormulario((actual) => ({ ...actual, clienteId: event.target.value }))}
+                    onBlur={() => handleFieldBlur("clienteId")}
+                  >
                     <option value="">Selecciona cliente</option>
                     {clientes.map((cliente) => (
                       <option key={cliente.id} value={cliente.id}>
@@ -369,9 +427,10 @@ export default function CitasPage() {
                       </option>
                     ))}
                   </select>
+                  {touched.clienteId && formErrors.clienteId && <span className="field-error">{formErrors.clienteId}</span>}
                 </label>
 
-                <label style={{ display: "grid", gap: 6 }}>
+                <label>
                   <span>Trabajador</span>
                   <select value={formulario.trabajadorId} onChange={(event) => setFormulario((actual) => ({ ...actual, trabajadorId: event.target.value }))}>
                     <option value="">Sin asignar</option>
@@ -383,24 +442,46 @@ export default function CitasPage() {
                   </select>
                 </label>
 
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span>Fecha</span>
-                  <input type="date" value={formulario.fecha} onChange={(event) => setFormulario((actual) => ({ ...actual, fecha: event.target.value }))} />
+                <label className={formErrors.fecha && touched.fecha ? "has-error" : ""}>
+                  <span>Fecha *</span>
+                  <input 
+                    type="date" 
+                    value={formulario.fecha} 
+                    onChange={(event) => setFormulario((actual) => ({ ...actual, fecha: event.target.value }))}
+                    onBlur={() => handleFieldBlur("fecha")}
+                  />
+                  {touched.fecha && formErrors.fecha && <span className="field-error">{formErrors.fecha}</span>}
                 </label>
 
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span>Hora inicio</span>
-                  <input type="time" value={formulario.horaInicio} onChange={(event) => setFormulario((actual) => ({ ...actual, horaInicio: event.target.value }))} />
+                <label className={formErrors.horaInicio && touched.horaInicio ? "has-error" : ""}>
+                  <span>Hora inicio *</span>
+                  <input 
+                    type="time" 
+                    value={formulario.horaInicio} 
+                    onChange={(event) => setFormulario((actual) => ({ ...actual, horaInicio: event.target.value }))}
+                    onBlur={() => handleFieldBlur("horaInicio")}
+                  />
+                  {touched.horaInicio && formErrors.horaInicio && <span className="field-error">{formErrors.horaInicio}</span>}
                 </label>
 
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span>Hora fin</span>
-                  <input type="time" value={formulario.horaFin} onChange={(event) => setFormulario((actual) => ({ ...actual, horaFin: event.target.value }))} />
+                <label className={formErrors.horaFin && touched.horaFin ? "has-error" : ""}>
+                  <span>Hora fin *</span>
+                  <input 
+                    type="time" 
+                    value={formulario.horaFin} 
+                    onChange={(event) => setFormulario((actual) => ({ ...actual, horaFin: event.target.value }))}
+                    onBlur={() => handleFieldBlur("horaFin")}
+                  />
+                  {touched.horaFin && formErrors.horaFin && <span className="field-error">{formErrors.horaFin}</span>}
                 </label>
 
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span>Servicio</span>
-                  <select value={formulario.servicioId} onChange={(event) => setFormulario((actual) => ({ ...actual, servicioId: event.target.value }))}>
+                <label className={formErrors.servicioId && touched.servicioId ? "has-error" : ""}>
+                  <span>Servicio *</span>
+                  <select 
+                    value={formulario.servicioId} 
+                    onChange={(event) => setFormulario((actual) => ({ ...actual, servicioId: event.target.value }))}
+                    onBlur={() => handleFieldBlur("servicioId")}
+                  >
                     <option value="">Selecciona servicio</option>
                     {serviciosCatalogo.map((servicio) => (
                       <option key={servicio.id} value={servicio.id}>
@@ -408,10 +489,11 @@ export default function CitasPage() {
                       </option>
                     ))}
                   </select>
+                  {touched.servicioId && formErrors.servicioId && <span className="field-error">{formErrors.servicioId}</span>}
                 </label>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <div className="form-actions">
                 <button type="submit" className="btn btn-primary" disabled={creating}>
                   {creating ? "Guardando..." : "Guardar cita"}
                 </button>

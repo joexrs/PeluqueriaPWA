@@ -22,17 +22,11 @@
   padding: 0 8px;
 }
 
-.sidebar-badge {
+.sidebar-brand-logo {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  color: var(--color-primary-dark);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 700;
+  border-radius: 8px;
+  object-fit: cover;
   flex-shrink: 0;
 }
 
@@ -92,6 +86,36 @@
   font-size: 22px;
   font-weight: 600;
   color: var(--color-primary-dark);
+}
+
+.topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-user-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.topbar-logout-btn {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.topbar-logout-btn:hover {
+  background: var(--color-bg);
+  color: var(--color-danger, #ef4444);
 }
 
 .topbar-user-avatar {

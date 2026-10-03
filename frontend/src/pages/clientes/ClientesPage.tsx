@@ -6,6 +6,7 @@ import {
   actualizarCliente,
   type ClienteRow,
 } from "./clientesService";
+import { validators } from "../../lib/validators";
 import "./clientes.css";
 
 type Vista = "lista" | "detalle" | "form";
@@ -37,6 +38,8 @@ export default function ClientesPage() {
   const [error, setError] = useState<string | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(formVacio);
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof FormState, boolean>>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -114,11 +117,64 @@ export default function ClientesPage() {
     setVista("form");
   }
 
+  // Validate individual field
+  function validateField(name: keyof FormState, value: string): string | undefined {
+    switch (name) {
+      case "nombre":
+        return validators.required("El nombre es obligatorio").validate(value).error;
+      case "telefono":
+        return validators.compose(
+          validators.required("El teléfono es obligatorio"),
+          validators.phone("Ingresa un teléfono válido")
+        ).validate(value).error;
+      case "email":
+        return value ? validators.email("Correo electrónico inválido").validate(value).error : undefined;
+      case "fecha_nacimiento":
+        return value ? validators.pastOrPresentDate("La fecha de nacimiento no puede ser futura").validate(value).error : undefined;
+      default:
+        return undefined;
+    }
+  }
+
+  // Validate all form fields
+  function validateForm(): boolean {
+    const errors: Partial<Record<keyof FormState, string>> = {};
+    let isValid = true;
+
+    for (const key of Object.keys(form) as Array<keyof FormState>) {
+      const error = validateField(key, form[key]);
+      if (error) {
+        errors[key] = error;
+        isValid = false;
+      }
+    }
+
+    setFormErrors(errors);
+    return isValid;
+  }
+
+  // Handle field blur
+  function handleFieldBlur(name: keyof FormState) {
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    const error = validateField(name, form[name]);
+    setFormErrors((prev) => ({ ...prev, [name]: error }));
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!form.nombre.trim() || !form.telefono.trim()) {
-      setError("Completa nombre y teléfono antes de guardar.");
+    // Mark all fields as touched
+    setTouched({
+      nombre: true,
+      telefono: true,
+      email: true,
+      fecha_nacimiento: true,
+      apellido: true,
+      notas_preferencias: true,
+    });
+
+    if (!validateForm()) {
+      setError("Por favor, corrige los errores antes de guardar.");
       return;
     }
 
@@ -299,57 +355,70 @@ export default function ClientesPage() {
 
           {error && <div className="banner-error">{error}</div>}
 
-          <label>
-            Nombre
+          <label className={touched.nombre && formErrors.nombre ? "has-error" : ""}>
+            <span>Nombre *</span>
             <input
               type="text"
               value={form.nombre}
               onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))}
+              onBlur={() => handleFieldBlur("nombre")}
+              placeholder="Ingresa el nombre"
             />
+            {touched.nombre && formErrors.nombre && <span className="field-error">{formErrors.nombre}</span>}
           </label>
 
           <label>
-            Apellido
+            <span>Apellido</span>
             <input
               type="text"
               value={form.apellido}
               onChange={(e) => setForm((prev) => ({ ...prev, apellido: e.target.value }))}
+              placeholder="Ingresa el apellido"
             />
           </label>
 
-          <label>
-            Teléfono
+          <label className={touched.telefono && formErrors.telefono ? "has-error" : ""}>
+            <span>Teléfono *</span>
             <input
               type="tel"
               value={form.telefono}
               onChange={(e) => setForm((prev) => ({ ...prev, telefono: e.target.value }))}
+              onBlur={() => handleFieldBlur("telefono")}
+              placeholder="Ej. 55 1234 5678"
             />
+            {touched.telefono && formErrors.telefono && <span className="field-error">{formErrors.telefono}</span>}
           </label>
 
-          <label>
-            Email
+          <label className={touched.email && formErrors.email ? "has-error" : ""}>
+            <span>Email</span>
             <input
               type="email"
               value={form.email}
               onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+              onBlur={() => handleFieldBlur("email")}
+              placeholder="correo@ejemplo.com"
             />
+            {touched.email && formErrors.email && <span className="field-error">{formErrors.email}</span>}
           </label>
 
-          <label>
-            Fecha de nacimiento
+          <label className={touched.fecha_nacimiento && formErrors.fecha_nacimiento ? "has-error" : ""}>
+            <span>Fecha de nacimiento</span>
             <input
               type="date"
               value={form.fecha_nacimiento}
               onChange={(e) => setForm((prev) => ({ ...prev, fecha_nacimiento: e.target.value }))}
+              onBlur={() => handleFieldBlur("fecha_nacimiento")}
             />
+            {touched.fecha_nacimiento && formErrors.fecha_nacimiento && <span className="field-error">{formErrors.fecha_nacimiento}</span>}
           </label>
 
           <label>
-            Notas y preferencias
+            <span>Notas y preferencias</span>
             <textarea
               rows={4}
               value={form.notas_preferencias}
               onChange={(e) => setForm((prev) => ({ ...prev, notas_preferencias: e.target.value }))}
+              placeholder="Notas sobre preferencias del cliente..."
             />
           </label>
 

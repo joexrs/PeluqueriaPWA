@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -10,7 +10,9 @@ import {
   ShoppingCart,
   UserCog,
 } from "lucide-react";
-import { obtenerMiPerfil, type RolUsuario } from "../../pages/usuarios/usuariosService";
+import { useAuth } from "../../context/AuthContext";
+import type { RolUsuario } from "../../pages/usuarios/usuariosService";
+import logoPelu from "../../assets/Logo_pelu.png";
 
 const NAV_ITEMS: Array<{
   to: string;
@@ -29,41 +31,22 @@ const NAV_ITEMS: Array<{
 ];
 
 export default function Sidebar() {
-  const [rol, setRol] = useState<RolUsuario | null>(null);
-
-  useEffect(() => {
-    let cancelado = false;
-
-    async function cargarRol() {
-      try {
-        const perfil = await obtenerMiPerfil();
-        if (!cancelado) {
-          setRol(perfil?.rol ?? "admin");
-        }
-      } catch {
-        if (!cancelado) {
-          setRol("admin");
-        }
-      }
-    }
-
-    void cargarRol();
-
-    return () => {
-      cancelado = true;
-    };
-  }, []);
+  const { perfil } = useAuth();
 
   const itemsVisibles = useMemo(() => {
-    if (!rol) return [];
-    return NAV_ITEMS.filter((item) => item.roles.includes(rol));
-  }, [rol]);
+    if (!perfil) return [];
+    return NAV_ITEMS.filter((item) => item.roles.includes(perfil.rol));
+  }, [perfil]);
 
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="sidebar-badge">P</span>
-        <span className="sidebar-brand-name">Peluquería</span>
+        <img
+          src={logoPelu}
+          alt="Victor Manuel Peluqueros"
+          className="sidebar-brand-logo"
+        />
+        <span className="sidebar-brand-name">VM Peluqueros</span>
       </div>
 
       <nav className="sidebar-nav">
