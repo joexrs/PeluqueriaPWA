@@ -3,7 +3,6 @@ import { useState, type FormEvent } from "react";
 import { iniciarSesion } from "./loginService";
 import type { LoginState } from "./types";
 import { validators } from "../../lib/validators";
-import logoPelu from "../../assets/Logo_pelu.png";
 
 const formInicial: LoginState = {
   email: "",
@@ -98,7 +97,7 @@ export default function LoginPage() {
       <div className="login-panel">
         <div className="login-brand">
           <img
-            src={logoPelu}
+            src="/LogoWM.png"
             alt="Victor Manuel Peluqueros"
             className="login-brand-logo"
           />
