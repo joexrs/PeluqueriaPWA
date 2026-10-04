@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import type { RolUsuario } from "../../pages/usuarios/usuariosService";
-import logoPelu from "../../assets/Logo_pelu.png";
 
 const NAV_ITEMS: Array<{
   to: string;
@@ -42,7 +41,7 @@ export default function Sidebar() {
     <aside className="sidebar">
       <div className="sidebar-brand">
         <img
-          src={logoPelu}
+          src="/LogoWM.png"
           alt="Victor Manuel Peluqueros"
           className="sidebar-brand-logo"
         />
