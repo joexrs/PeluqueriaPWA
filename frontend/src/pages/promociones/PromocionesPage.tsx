@@ -6,23 +6,17 @@ import {
   actualizarPromocion,
   toggleActivarPromocion,
 } from "./promocionesService";
-import type { Promocion, TipoPromocion } from "./types";
+import { obtenerServicios, type ServicioRow } from "../servicios/serviciosService";
+import type { Promocion } from "./types";
 import "./promociones.css";
 
 type Vista = "lista" | "detalle" | "form";
-
-const TIPOS: { value: TipoPromocion; label: string }[] = [
-  { value: "cumpleaños", label: "Cumpleaños" },
-  { value: "fiestas", label: "Fiestas patrias" },
-  { value: "temporada", label: "Temporada" },
-  { value: "general", label: "General" },
-];
 
 interface FormState {
   titulo: string;
   descripcion: string;
   descuento: string;
-  tipo: TipoPromocion;
+  servicioId: string;
   fechaInicio: string;
   fechaFin: string;
   activa: boolean;
@@ -32,21 +26,15 @@ const formVacio: FormState = {
   titulo: "",
   descripcion: "",
   descuento: "",
-  tipo: "general",
+  servicioId: "",
   fechaInicio: "",
   fechaFin: "",
   activa: true,
 };
 
-const etiquetaTipo: Record<TipoPromocion, string> = {
-  cumpleaños: "🎂 Cumpleaños",
-  fiestas: "🎉 Fiestas",
-  temporada: "🌸 Temporada",
-  general: "🏷️ General",
-};
-
 export default function PromocionesPage() {
   const [promociones, setPromociones] = useState<Promocion[]>([]);
+  const [servicios, setServicios] = useState<ServicioRow[]>([]);
   const [vista, setVista] = useState<Vista>("lista");
   const [promocionSeleccionadaId, setPromocionSeleccionadaId] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
@@ -61,9 +49,10 @@ export default function PromocionesPage() {
     const cargarPromociones = async () => {
       try {
         setLoading(true);
-        const data = await obtenerPromociones();
+        const [data, serviciosData] = await Promise.all([obtenerPromociones(), obtenerServicios()]);
         if (!cancelled) {
           setPromociones(data);
+          setServicios(serviciosData);
           setError(null);
         }
       } catch (err) {
@@ -90,7 +79,7 @@ export default function PromocionesPage() {
     const q = busqueda.trim().toLowerCase();
     if (!q) return promociones;
     return promociones.filter((p) => {
-      const texto = `${p.titulo} ${p.descripcion} ${p.tipo}`.toLowerCase();
+      const texto = `${p.titulo} ${p.descripcion} ${p.servicioNombre ?? ""}`.toLowerCase();
       return texto.includes(q);
     });
   }, [promociones, busqueda]);
@@ -118,7 +107,7 @@ export default function PromocionesPage() {
           titulo: p.titulo,
           descripcion: p.descripcion,
           descuento: String(p.descuento),
-          tipo: p.tipo,
+          servicioId: p.servicioId,
           fechaInicio: p.fechaInicio,
           fechaFin: p.fechaFin,
           activa: p.activa,
@@ -135,7 +124,7 @@ export default function PromocionesPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!form.titulo.trim() || !form.descripcion.trim() || !form.descuento || !form.fechaInicio || !form.fechaFin) {
+    if (!form.titulo.trim() || !form.descuento || !form.fechaInicio || !form.fechaFin) {
       setError("Completa todos los campos antes de guardar.");
       return;
     }
@@ -151,11 +140,11 @@ export default function PromocionesPage() {
       return;
     }
 
-    const payload: Omit<Promocion, "id"> = {
+    const payload: Omit<Promocion, "id" | "servicioNombre"> = {
       titulo: form.titulo.trim(),
       descripcion: form.descripcion.trim(),
       descuento,
-      tipo: form.tipo,
+      servicioId: form.servicioId,
       fechaInicio: form.fechaInicio,
       fechaFin: form.fechaFin,
       activa: form.activa,
@@ -239,7 +228,7 @@ export default function PromocionesPage() {
             <thead>
               <tr>
                 <th>Título</th>
-                <th>Tipo</th>
+                <th>Servicio</th>
                 <th>Descuento</th>
                 <th>Vigencia</th>
                 <th>Estado</th>
@@ -261,9 +250,7 @@ export default function PromocionesPage() {
                     onClick={() => abrirDetalle(p.id)}
                   >
                     <td data-label="Título">{p.titulo}</td>
-                    <td data-label="Tipo">
-                      <span className="tag tag-tipo">{etiquetaTipo[p.tipo]}</span>
-                    </td>
+                    <td data-label="Servicio">{p.servicioNombre ?? "Todos los servicios"}</td>
                     <td data-label="Descuento">{p.descuento}%</td>
                     <td data-label="Vigencia">
                       {p.fechaInicio} → {p.fechaFin}
@@ -315,7 +302,7 @@ export default function PromocionesPage() {
 
         <h2 className="detalle-titulo">{promocionDetalle.titulo}</h2>
         <p className="sub">
-          <span className="tag tag-tipo">{etiquetaTipo[promocionDetalle.tipo]}</span>
+          <span className="tag tag-tipo">{promocionDetalle.servicioNombre ?? "Todos los servicios"}</span>
           &nbsp;·&nbsp;
           <span className={`tag ${promocionDetalle.activa ? "tag-activa" : "tag-inactiva"}`}>
             {promocionDetalle.activa ? "Activa" : "Inactiva"}
@@ -402,16 +389,15 @@ export default function PromocionesPage() {
 
           <div className="form-row">
             <label>
-              Tipo
+              Servicio
               <select
-                value={form.tipo}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, tipo: e.target.value as TipoPromocion }))
-                }
+                value={form.servicioId}
+                onChange={(e) => setForm((prev) => ({ ...prev, servicioId: e.target.value }))}
               >
-                {TIPOS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                <option value="">Todos los servicios</option>
+                {servicios.map((servicio) => (
+                  <option key={servicio.ID} value={servicio.ID}>
+                    {servicio.Nombre}
                   </option>
                 ))}
               </select>
@@ -423,7 +409,7 @@ export default function PromocionesPage() {
                 type="number"
                 min="0"
                 max="100"
-                step="1"
+                step="0.01"
                 value={form.descuento}
                 onChange={(e) => setForm((prev) => ({ ...prev, descuento: e.target.value }))}
               />

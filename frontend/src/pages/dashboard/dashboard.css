@@ -18,7 +18,7 @@
 
 .dash-header h2 {
   font-size: clamp(24px, 3vw, 36px);
-  color: var(--color-primary-dark);
+  color: var(--color-ink);
   margin-top: 4px;
 }
 
@@ -49,17 +49,16 @@
 }
 
 .kpi-card-new {
-  background: white;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 18px;
+  border-radius: 6px;
   padding: 20px 18px 16px;
-  box-shadow: 0 6px 18px rgba(36, 20, 25, 0.04);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: none;
+  transition: transform 0.18s ease;
 }
 
 .kpi-card-new:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(36, 20, 25, 0.08);
 }
 
 .kpi-card-header {
@@ -80,23 +79,23 @@
 .kpi-icon-wrap {
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: 6px;
   display: grid;
   place-items: center;
-  background: rgba(122, 46, 69, 0.08);
-  color: var(--color-primary);
+  background: var(--color-accent-soft);
+  color: var(--color-chrome);
 }
 
-.kpi-icon-wrap.kpi-gold  { background: rgba(201,162,39,0.14); color: #8c6200; }
-.kpi-icon-wrap.kpi-green { background: rgba(46,122,93,0.12);  color: #2e7a5d; }
-.kpi-icon-wrap.kpi-red   { background: rgba(185,28,28,0.1);   color: #b91c1c; }
-.kpi-icon-wrap.kpi-purple{ background: rgba(109,40,217,0.1);  color: #6d28d9; }
-.kpi-icon-wrap.kpi-muted { background: rgba(169,138,147,0.12);color: var(--color-muted); }
+.kpi-icon-wrap.kpi-gold  { background: rgba(201,162,39,0.2);  color: var(--color-accent); }
+.kpi-icon-wrap.kpi-green { background: rgba(46,122,93,0.15); color: #2e7a5d; }
+.kpi-icon-wrap.kpi-red   { background: rgba(185,28,28,0.15); color: #b91c1c; }
+.kpi-icon-wrap.kpi-purple{ background: rgba(109,40,217,0.15);color: #6d28d9; }
+.kpi-icon-wrap.kpi-muted { background: var(--color-accent-soft);color: var(--color-ink-muted); }
 
 .kpi-number {
   font-family: var(--font-display);
   font-size: clamp(26px, 2.8vw, 36px);
-  color: var(--color-primary-dark);
+  color: var(--color-ink);
   line-height: 1;
   margin-bottom: 6px;
 }
@@ -116,11 +115,10 @@
 
 /* ── Paneles ───────────────────────────────────────────── */
 .dash-panel {
-  background: white;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 20px;
+  border-radius: 6px;
   padding: 22px;
-  box-shadow: 0 6px 18px rgba(36, 20, 25, 0.03);
 }
 
 .dash-panel-wide {
@@ -137,15 +135,17 @@
 
 .dash-panel-head h3 {
   font-size: clamp(16px, 1.6vw, 20px);
-  color: var(--color-primary-dark);
+  color: var(--color-ink);
 }
 
 .btn-link {
   border: 0;
   background: transparent;
-  color: var(--color-primary);
-  font-weight: 700;
+  color: var(--color-accent);
+  font-weight: 500;
   font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -174,7 +174,7 @@
 }
 
 .cita-row:hover {
-  background: rgba(122, 46, 69, 0.03);
+  background: var(--color-surface-2);
 }
 
 .cita-hora {
@@ -187,7 +187,7 @@
 .cita-hora strong {
   font-family: var(--font-display);
   font-size: 17px;
-  color: var(--color-primary-dark);
+  color: var(--color-ink);
 }
 
 .cita-hora small {
@@ -257,11 +257,11 @@
   white-space: nowrap;
 }
 
-.tag-success  { background: rgba(46,122,93,0.12);   color: #2e7a5d; }
-.tag-warning  { background: rgba(201,162,39,0.15);  color: #7a5a11; }
-.tag-info     { background: rgba(37,99,235,0.1);    color: #1d4ed8; }
-.tag-error    { background: rgba(185,28,28,0.1);    color: #b91c1c; }
-.tag-neutral  { background: rgba(122,46,69,0.08);   color: var(--color-primary); }
+.tag-success  { background: rgba(46,122,93,0.15);   color: #2e7a5d; }
+.tag-warning  { background: rgba(201,162,39,0.2);  color: var(--color-accent); }
+.tag-info     { background: rgba(37,99,235,0.15);  color: #1d4ed8; }
+.tag-error    { background: rgba(185,28,28,0.15);  color: #b91c1c; }
+.tag-neutral  { background: var(--color-accent-soft); color: var(--color-ink); }
 
 /* ── Gráfico ───────────────────────────────────────────── */
 .chart-container {
@@ -269,25 +269,24 @@
 }
 
 .chart-tooltip {
-  background: white;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 10px 14px;
-  box-shadow: 0 8px 20px rgba(36,20,25,0.1);
 }
 
 .chart-tooltip-label {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  color: var(--color-muted);
+  color: var(--color-ink-muted);
   margin-bottom: 4px;
 }
 
 .chart-tooltip-value {
   font-family: var(--font-display);
   font-size: 18px;
-  color: var(--color-primary-dark);
+  color: var(--color-ink);
 }
 
 /* ── Estados vacíos / error / loading ──────────────────── */
@@ -320,7 +319,7 @@
   width: 36px;
   height: 36px;
   border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

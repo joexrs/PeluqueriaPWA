@@ -1,184 +1,275 @@
 /**
  * AuthContext.tsx
- * Contexto global de autenticación.
- * Provee el estado de sesión y perfil del usuario a toda la aplicación,
- * escuchando cambios en tiempo real desde Supabase Auth.
+ * Supabase Auth session and the linked application profile/role.
  */
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
-  useCallback,
   type ReactNode,
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabaseClient";
+import { iniciarSesion as autenticar } from "../pages/login/loginService";
 import type { RolUsuario } from "../pages/usuarios/usuariosService";
 
-/* ── Tipos ─────────────────────────────────────────────── */
-
 export interface PerfilUsuario {
-  id: string;
-  nombre: string;
-  apellido: string;
-  email: string;
-  rol: RolUsuario;
-  activo: boolean;
+  ID: number;
+  DNI: string | null;
+  Nombre: string;
+  Apellido: string;
+  E_mail: string;
+  Telefono: string | null;
+  Usuario: string;
+  Color_agenda: string | null;
+  Comision_porcentaje: number | null;
+  Rol_id: number | null;
+  Estado: boolean;
+  auth_user_id: string;
+  Rol:
+    | {
+        ID: number;
+        Nombre: string;
+        Estado: boolean;
+      }
+    | {
+        ID: number;
+        Nombre: string;
+        Estado: boolean;
+      }[]
+    | null;
 }
 
 interface AuthState {
-  /** Sesión de Supabase (null si no autenticado) */
-  session: Session | null;
-  /** Usuario de Supabase Auth */
   user: User | null;
-  /** Perfil del usuario desde la tabla `usuarios` */
-  perfil: PerfilUsuario | null;
-  /** true mientras se verifica la sesión al cargar la app */
-  cargando: boolean;
-  /** Cerrar sesión y limpiar estado */
-  cerrarSesion: () => Promise<void>;
-  /** Refrescar el perfil del usuario manualmente */
-  refrescarPerfil: () => Promise<void>;
+  profile: PerfilUsuario | null;
+  role: RolUsuario | null;
+  loading: boolean;
+  profileError: string | null;
+  signIn: (email: string, password: string) => Promise<{ ok: boolean; message: string }>;
+  signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  session: Session | null;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
-/* ── Provider ──────────────────────────────────────────── */
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
-  const [cargando, setCargando] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<PerfilUsuario | null>(null);
+  const [role, setRole] = useState<RolUsuario | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const requestId = useRef(0);
 
-  /**
-   * Obtiene el perfil del usuario actual desde la tabla `usuarios`
-   * vinculado por `auth_id`. Si no existe o no tiene rol, asigna admin por defecto.
-   */
-  const cargarPerfil = useCallback(async (user: User) => {
-    try {
-      const { data, error } = await supabase
-        .from("usuarios")
-        .select("id, nombre, apellido, email, rol, activo")
-        .eq("auth_id", user.id)
-        .maybeSingle();
+  const loadProfile = useCallback(async (authUser: User) => {
+    const currentRequest = ++requestId.current;
+    setUser(authUser);
+    setProfile(null);
+    setRole(null);
+    setProfileError(null);
+    setLoading(true);
 
-      if (error) {
-        console.error("Error al cargar perfil:", error.message);
-        setPerfil(null);
-        return;
-      }
+    const { data, error } = await supabase
+      .from("Usuario")
+      .select(`
+        ID,
+        DNI,
+        Nombre,
+        Apellido,
+        E_mail,
+        Telefono,
+        Usuario,
+        Color_agenda,
+        Comision_porcentaje,
+        Rol_id,
+        Estado,
+        auth_user_id,
+        Rol (
+          ID,
+          Nombre,
+          Estado
+        )
+      `)
+      .eq("auth_user_id", authUser.id)
+      .maybeSingle();
 
-      if (data) {
-        setPerfil({
-          id: data.id,
-          nombre: data.nombre || "Usuario",
-          apellido: data.apellido || "Prueba",
-          email: data.email,
-          rol: (data.rol as RolUsuario) || "admin", // Fallback a admin si no hay rol
-          activo: data.activo !== false, // Fallback a true
-        });
-      } else {
-        // Fallback total para usuarios que aún no están en la tabla `usuarios` (ej. usuario de prueba)
-        setPerfil({
-          id: user.id,
-          nombre: "Usuario",
-          apellido: "Admin (Prueba)",
-          email: user.email || "",
-          rol: "admin",
-          activo: true,
-        });
-      }
-    } catch (err) {
-      console.error("Error inesperado al cargar perfil:", err);
-      setPerfil(null);
+    if (currentRequest !== requestId.current) return;
+
+    if (error) {
+      console.error("No se pudo cargar el perfil asociado a Auth:", error.message);
+      setProfileError(
+        error.code === "PGRST116"
+          ? "Hay más de un perfil de Usuario vinculado a esta cuenta. Debe existir una sola fila con este auth_user_id."
+          : `No se pudo cargar tu perfil y rol desde Supabase: ${error.message}`,
+      );
+      setLoading(false);
+      return;
     }
+
+    if (!data) {
+      setProfileError(
+        "No se encontró un perfil de Usuario visible para esta sesión. Comprueba que public.Usuario.auth_user_id coincida exactamente con el UUID de Supabase Auth y que RLS permita leer ese perfil.",
+      );
+      setLoading(false);
+      return;
+    }
+
+    const loadedProfile = data as PerfilUsuario;
+    const roleRow = Array.isArray(loadedProfile.Rol)
+      ? loadedProfile.Rol[0]
+      : loadedProfile.Rol;
+    const loadedRole = roleRow?.Nombre?.toLowerCase();
+    const validRoles: RolUsuario[] = ["admin", "jefe", "recepcionista", "trabajador"];
+
+    if (
+      loadedProfile.auth_user_id !== authUser.id ||
+      loadedProfile.Estado !== true ||
+      !roleRow ||
+      !loadedRole ||
+      !validRoles.includes(loadedRole as RolUsuario) ||
+      roleRow.Estado !== true
+    ) {
+      setProfileError("El usuario no tiene un perfil activo con un rol válido vinculado en Supabase.");
+      setLoading(false);
+      return;
+    }
+
+    setProfile(loadedProfile);
+    setRole(loadedRole as RolUsuario);
+    setLoading(false);
   }, []);
 
-  const refrescarPerfil = useCallback(async () => {
-    if (session?.user) {
-      await cargarPerfil(session.user);
-    }
-  }, [session, cargarPerfil]);
+  const syncSession = useCallback(async (nextSession: Session | null) => {
+    const currentRequest = ++requestId.current;
+    setSession(nextSession);
+    setProfile(null);
+    setRole(null);
+    setProfileError(null);
 
-  const cerrarSesion = useCallback(async () => {
-    await supabase.auth.signOut();
+    if (!nextSession) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
+    setUser(nextSession.user);
+    setLoading(true);
+
+    const { data, error } = await supabase.auth.getUser();
+    if (currentRequest !== requestId.current) return;
+
+    if (error || !data.user || data.user.id !== nextSession.user.id) {
+      console.error("No se pudo verificar el usuario de la sesión:", error?.message);
+      setProfileError(error?.message ?? "No se pudo verificar la sesión de Supabase.");
+      setLoading(false);
+      return;
+    }
+
+    await loadProfile(data.user);
+  }, [loadProfile]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    const result = await autenticar(email, password);
+    if (result.error || !result.user) {
+      return {
+        ok: false,
+        message: result.error?.message ?? "No se pudo iniciar sesión.",
+      };
+    }
+
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session || data.session.user.id !== result.user.id) {
+      return {
+        ok: false,
+        message: error?.message ?? "Supabase no devolvió una sesión válida.",
+      };
+    }
+
+    await syncSession(data.session);
+    return { ok: true, message: "Inicio de sesión correcto." };
+  }, [syncSession]);
+
+  const signOut = useCallback(async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("No se pudo cerrar la sesión de Supabase:", error.message);
+      throw error;
+    }
+
+    requestId.current += 1;
     setSession(null);
-    setPerfil(null);
+    setUser(null);
+    setProfile(null);
+    setRole(null);
+    setProfileError(null);
+    setLoading(false);
   }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (user) await loadProfile(user);
+  }, [loadProfile, user]);
 
   useEffect(() => {
-    let montado = true;
+    let mounted = true;
 
-    // 1. Obtener sesión actual al montar
-    async function inicializar() {
-      try {
-        const {
-          data: { session: sesionActual },
-        } = await supabase.auth.getSession();
-
-        if (!montado) return;
-
-        setSession(sesionActual);
-
-        if (sesionActual?.user) {
-          await cargarPerfil(sesionActual.user);
-        }
-      } catch (err) {
-        console.error("Error al inicializar sesión:", err);
-      } finally {
-        if (montado) setCargando(false);
-      }
-    }
-
-    void inicializar();
-
-    // 2. Escuchar cambios de sesión en tiempo real
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (evento, nuevaSesion) => {
-      if (!montado) return;
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return;
+      window.setTimeout(() => {
+        if (mounted) void syncSession(nextSession);
+      }, 0);
+    });
 
-      setSession(nuevaSesion);
-
-      if (evento === "SIGNED_IN" && nuevaSesion?.user) {
-        await cargarPerfil(nuevaSesion.user);
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+      if (error) {
+        console.error("No se pudo recuperar la sesión de Supabase:", error.message);
+        setProfileError(error.message);
+        setLoading(false);
+        return;
       }
-
-      if (evento === "SIGNED_OUT") {
-        setPerfil(null);
-      }
-
-      // Si el token se refresca, actualizamos la sesión
-      if (evento === "TOKEN_REFRESHED") {
-        setSession(nuevaSesion);
-      }
+      void syncSession(data.session);
+    }).catch((error: unknown) => {
+      if (!mounted) return;
+      console.error("Error inesperado al recuperar la sesión:", error);
+      setProfileError("No se pudo recuperar la sesión de Supabase.");
+      setLoading(false);
     });
 
     return () => {
-      montado = false;
+      mounted = false;
+      requestId.current += 1;
       subscription.unsubscribe();
     };
-  }, [cargarPerfil]);
+  }, [syncSession]);
 
-  const valor: AuthState = {
+  const value: AuthState = {
+    user,
+    profile,
+    role,
+    loading,
+    profileError,
+    signIn,
+    signOut,
+    refreshProfile,
     session,
-    user: session?.user ?? null,
-    perfil,
-    cargando,
-    cerrarSesion,
-    refrescarPerfil,
   };
 
-  return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-/* ── Hook ──────────────────────────────────────────────── */
-
+// This hook is exported alongside the provider as part of the context API.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthState {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
+  const context = useContext(AuthContext);
+  if (!context) {
     throw new Error("useAuth debe usarse dentro de <AuthProvider>");
   }
-  return ctx;
+  return context;
 }

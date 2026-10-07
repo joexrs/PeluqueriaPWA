@@ -14,6 +14,7 @@ type Vista = "lista" | "detalle" | "form";
 interface FormState {
   nombre: string;
   apellido: string;
+  dni: string;
   telefono: string;
   email: string;
   fecha_nacimiento: string;
@@ -23,6 +24,7 @@ interface FormState {
 const formVacio: FormState = {
   nombre: "",
   apellido: "",
+  dni: "",
   telefono: "",
   email: "",
   fecha_nacimiento: "",
@@ -85,6 +87,8 @@ export default function ClientesPage() {
   function resetFormulario() {
     setForm(formVacio);
     setEditandoId(null);
+    setFormErrors({});
+    setTouched({});
     setError(null);
   }
 
@@ -95,6 +99,9 @@ export default function ClientesPage() {
   }
 
   function abrirFormulario(id?: string) {
+    setFormErrors({});
+    setTouched({});
+    setError(null);
     if (id) {
       const cliente = clientes.find((item) => item.id === id);
       if (cliente) {
@@ -102,6 +109,7 @@ export default function ClientesPage() {
         setForm({
           nombre: cliente.nombre,
           apellido: cliente.apellido ?? "",
+          dni: cliente.DNI ?? "",
           telefono: cliente.telefono,
           email: cliente.email ?? "",
           fecha_nacimiento: cliente.fecha_nacimiento ?? "",
@@ -122,11 +130,10 @@ export default function ClientesPage() {
     switch (name) {
       case "nombre":
         return validators.required("El nombre es obligatorio").validate(value).error;
+      case "apellido":
+        return validators.required("El apellido es obligatorio").validate(value).error;
       case "telefono":
-        return validators.compose(
-          validators.required("El teléfono es obligatorio"),
-          validators.phone("Ingresa un teléfono válido")
-        ).validate(value).error;
+        return validators.phone("Ingresa un teléfono válido").validate(value).error;
       case "email":
         return value ? validators.email("Correo electrónico inválido").validate(value).error : undefined;
       case "fecha_nacimiento":
@@ -166,10 +173,11 @@ export default function ClientesPage() {
     // Mark all fields as touched
     setTouched({
       nombre: true,
+      apellido: true,
+      dni: true,
       telefono: true,
       email: true,
       fecha_nacimiento: true,
-      apellido: true,
       notas_preferencias: true,
     });
 
@@ -180,7 +188,8 @@ export default function ClientesPage() {
 
     const payload = {
       nombre: form.nombre.trim(),
-      apellido: form.apellido.trim() || null,
+      apellido: form.apellido.trim(),
+      dni: form.dni.trim() || null,
       telefono: form.telefono.trim(),
       email: form.email.trim() || null,
       fecha_nacimiento: form.fecha_nacimiento || null,
@@ -199,8 +208,7 @@ export default function ClientesPage() {
       }
       setError(null);
       setVista("detalle");
-      setForm(formVacio);
-      setEditandoId(null);
+      resetFormulario();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el cliente.");
     }
@@ -346,7 +354,13 @@ export default function ClientesPage() {
   if (vista === "form") {
     return (
       <div className="clientes-page">
-        <span className="back-link" onClick={() => setVista(clienteSeleccionadoId ? "detalle" : "lista")}>
+        <span
+          className="back-link"
+          onClick={() => {
+            resetFormulario();
+            setVista(clienteSeleccionadoId ? "detalle" : "lista");
+          }}
+        >
           ← Cancelar
         </span>
 
@@ -368,17 +382,30 @@ export default function ClientesPage() {
           </label>
 
           <label>
-            <span>Apellido</span>
+            <span>Apellido *</span>
             <input
               type="text"
               value={form.apellido}
               onChange={(e) => setForm((prev) => ({ ...prev, apellido: e.target.value }))}
+              onBlur={() => handleFieldBlur("apellido")}
               placeholder="Ingresa el apellido"
+            />
+            {touched.apellido && formErrors.apellido && <span className="field-error">{formErrors.apellido}</span>}
+          </label>
+
+          <label>
+            <span>DNI</span>
+            <input
+              type="text"
+              value={form.dni}
+              onChange={(e) => setForm((prev) => ({ ...prev, dni: e.target.value }))}
+              maxLength={20}
+              placeholder="Documento de identidad"
             />
           </label>
 
           <label className={touched.telefono && formErrors.telefono ? "has-error" : ""}>
-            <span>Teléfono *</span>
+            <span>Teléfono</span>
             <input
               type="tel"
               value={form.telefono}

@@ -9,6 +9,7 @@ import {
   Tag,
   ShoppingCart,
   UserCog,
+  BriefcaseBusiness,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import type { RolUsuario } from "../../pages/usuarios/usuariosService";
@@ -19,23 +20,24 @@ const NAV_ITEMS: Array<{
   icon: typeof LayoutDashboard;
   roles: RolUsuario[];
 }> = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["admin"]},
-  { to: "/citas", label: "Citas", icon: Calendar, roles: ["admin", "trabajador", "recepcionista"] },
-  { to: "/clientes", label: "Clientes", icon: Users, roles: ["admin", "recepcionista"] },
-  { to: "/productos", label: "Productos", icon: Package, roles: ["admin",] },
-  { to: "/servicios", label: "Servicios", icon: Sparkles, roles: ["admin"] },
-  { to: "/promociones", label: "Promos", icon: Tag, roles: ["admin", "recepcionista"] },
-  { to: "/ventas", label: "Ventas", icon: ShoppingCart, roles: ["admin", "recepcionista"] },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "jefe", "trabajador", "recepcionista"] },
+  { to: "/citas", label: "Citas", icon: Calendar, roles: ["admin", "jefe", "trabajador", "recepcionista"] },
+  { to: "/clientes", label: "Clientes", icon: Users, roles: ["admin", "jefe", "recepcionista"] },
+  { to: "/productos", label: "Productos", icon: Package, roles: ["admin", "jefe"] },
+  { to: "/servicios", label: "Servicios", icon: Sparkles, roles: ["admin", "jefe"] },
+  { to: "/promociones", label: "Promos", icon: Tag, roles: ["admin", "jefe", "recepcionista"] },
+  { to: "/ventas", label: "Ventas", icon: ShoppingCart, roles: ["admin", "jefe", "recepcionista"] },
+  { to: "/trabajadores", label: "Trabajadores", icon: BriefcaseBusiness, roles: ["admin", "jefe"] },
   { to: "/usuarios", label: "Usuarios", icon: UserCog, roles: ["admin"] },
 ];
 
 export default function Sidebar() {
-  const { perfil } = useAuth();
+  const { role } = useAuth();
 
   const itemsVisibles = useMemo(() => {
-    if (!perfil) return [];
-    return NAV_ITEMS.filter((item) => item.roles.includes(perfil.rol));
-  }, [perfil]);
+    if (!role) return [];
+    return NAV_ITEMS.filter((item) => item.roles.includes(role));
+  }, [role]);
 
   return (
     <aside className="sidebar">
@@ -57,7 +59,7 @@ export default function Sidebar() {
               `sidebar-link${isActive ? " is-active" : ""}`
             }
           >
-            <Icon size={18} strokeWidth={1.75} />
+            <Icon size={18} strokeWidth={1.25} />
             <span>{label}</span>
           </NavLink>
         ))}

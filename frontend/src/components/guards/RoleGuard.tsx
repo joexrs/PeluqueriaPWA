@@ -21,16 +21,16 @@ export default function RoleGuard({
   redirigirA = "/dashboard",
   children,
 }: RoleGuardProps) {
-  const { perfil, cargando } = useAuth();
+  const { role, loading } = useAuth();
 
   // Mientras carga, no mostrar nada (ProtectedRoute ya muestra loader)
-  if (cargando) return null;
+  if (loading) return null;
 
-  // Si no hay perfil aún, permitir (ProtectedRoute maneja la redirección)
-  if (!perfil) return null;
+  // ProtectedRoute presenta el error si no se pudo recuperar el perfil.
+  if (!role) return null;
 
   // Verificar si el rol del usuario está permitido
-  if (!rolesPermitidos.includes(perfil.rol)) {
+  if (!rolesPermitidos.includes(role)) {
     return <Navigate to={redirigirA} replace />;
   }
 

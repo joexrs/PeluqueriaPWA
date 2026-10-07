@@ -1,138 +1,206 @@
 /**
- * clientesService.ts — acceso directo a la tabla real `clientes` de Supabase.
+ * clientesService.ts — acceso directo a la tabla "Cliente" según schema.sql
  */
 import { supabase } from "../../lib/supabaseClient";
+import type { Cliente, CrearClientePayload } from "./types";
 
-/** Tipo para la respuesta cruda de Supabase */
+// Interfaces para tipos Raw de Supabase
 interface ClienteRaw {
-  id: unknown;
-  nombre: unknown;
-  apellido: unknown;
-  telefono: unknown;
-  email: unknown;
-  fecha_nacimiento: unknown;
-  notas_preferencias: unknown;
-  total_visitas: unknown;
-  activo: unknown;
-  created_at: unknown;
-  updated_at: unknown;
+  ID: unknown;
+  Nombre: unknown;
+  Apellido: unknown;
+  Telefono: unknown;
+  E_mail: unknown;
+  DNI: unknown;
+  Fecha_Nacimiento: unknown;
+  Total_visitas: unknown;
+  Preferencias: unknown;
+  Estado: unknown;
+  Created_at: unknown;
+  Updated_at: unknown;
 }
 
-export interface ClienteRow {
-  id: string;
-  nombre: string;
-  apellido?: string | null;
-  telefono: string;
-  email?: string | null;
-  fecha_nacimiento?: string | null;
-  notas_preferencias?: string | null;
-  total_visitas?: number;
-  activo: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
+/**
+ * Mapea una fila cruda de Supabase al tipo Cliente
+ */
+function mapCliente(row: ClienteRaw): Cliente {
+  let prefs: Record<string, unknown> | null = null;
+  if (row.Preferencias) {
+    try {
+      prefs = typeof row.Preferencias === 'string'
+        ? JSON.parse(row.Preferencias)
+        : row.Preferencias as Record<string, unknown>;
+    } catch {
+      prefs = null;
+    }
+  }
 
-export interface CrearClientePayload {
-  nombre: string;
-  apellido?: string | null;
-  telefono: string;
-  email?: string | null;
-  fecha_nacimiento?: string | null;
-  notas_preferencias?: string | null;
-}
+  const nombre = String(row.Nombre ?? "");
+  const apellido = row.Apellido ? String(row.Apellido) : "";
+  const telefono = row.Telefono ? String(row.Telefono) : "";
+  const email = row.E_mail ? String(row.E_mail) : null;
 
-function mapClienteRow(row: ClienteRaw): ClienteRow {
   return {
-    id: String(row.id ?? ""),
-    nombre: String(row.nombre ?? ""),
-    apellido: row.apellido ? String(row.apellido) : null,
-    telefono: String(row.telefono ?? ""),
-    email: row.email ? String(row.email) : null,
-    fecha_nacimiento: row.fecha_nacimiento ? String(row.fecha_nacimiento) : null,
-    notas_preferencias: row.notas_preferencias ? String(row.notas_preferencias) : null,
-    total_visitas: Number(row.total_visitas ?? 0),
-    activo: Boolean(row.activo ?? true),
-    created_at: row.created_at ? String(row.created_at) : undefined,
-    updated_at: row.updated_at ? String(row.updated_at) : undefined,
+    // Nuevos nombres (schema.sql)
+    ID: String(row.ID ?? ""),
+    Nombre: nombre,
+    Apellido: apellido,
+    Telefono: telefono || null,
+    E_mail: email,
+    DNI: row.DNI ? String(row.DNI) : null,
+    Fecha_Nacimiento: row.Fecha_Nacimiento ? String(row.Fecha_Nacimiento) : null,
+    Total_visitas: row.Total_visitas ? Number(row.Total_visitas) : 0,
+    Preferencias: prefs,
+    Estado: row.Estado !== false,
+    Created_at: row.Created_at ? String(row.Created_at) : undefined,
+    Updated_at: row.Updated_at ? String(row.Updated_at) : undefined,
+    // Alias de compatibilidad para la UI
+    id: String(row.ID ?? ""),
+    nombre: nombre,
+    apellido: apellido,
+    telefono: telefono,
+    email: email,
+    fecha_nacimiento: row.Fecha_Nacimiento ? String(row.Fecha_Nacimiento) : null,
+    notas_preferencias: prefs
+      ? typeof prefs.notas === "string"
+        ? prefs.notas
+        : JSON.stringify(prefs)
+      : null,
+    total_visitas: row.Total_visitas ? Number(row.Total_visitas) : 0,
+    activo: row.Estado !== false,
   };
 }
 
-export async function obtenerClientes(busqueda = ""): Promise<ClienteRow[]> {
+/**
+ * Obtiene todos los clientes (con búsqueda opcional)
+ */
+export async function obtenerClientes(busqueda = ""): Promise<Cliente[]> {
   let query = supabase
-    .from("clientes")
+    .from("Cliente")
     .select("*")
-    .eq("activo", true)
-    .order("nombre");
+    .eq("Estado", true)
+    .order("Nombre");
 
   if (busqueda.trim()) {
     const q = busqueda.trim();
     query = query.or(
-      `nombre.ilike.%${q}%,apellido.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%,notas_preferencias.ilike.%${q}%`
+      `Nombre.ilike.%${q}%,Apellido.ilike.%${q}%,Telefono.ilike.%${q}%,E_mail.ilike.%${q}%,DNI.ilike.%${q}%`
     );
   }
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapClienteRow);
+  return (data ?? []).map(mapCliente);
 }
 
-export async function obtenerClientePorId(id: string): Promise<ClienteRow> {
+/**
+ * Obtiene un cliente por su ID
+ */
+export async function obtenerClientePorId(id: string): Promise<Cliente> {
   const { data, error } = await supabase
-    .from("clientes")
+    .from("Cliente")
     .select("*")
-    .eq("id", id)
+    .eq("ID", id)
     .single();
 
   if (error) throw new Error(error.message);
-  return mapClienteRow(data);
+  return mapCliente(data as ClienteRaw);
 }
 
-export async function crearCliente(payload: CrearClientePayload): Promise<ClienteRow> {
+/**
+ * Crea un nuevo cliente
+ */
+export async function crearCliente(payload: CrearClientePayload): Promise<Cliente> {
+  const nombre = payload.Nombre ?? payload.nombre;
+  const apellido = payload.Apellido ?? payload.apellido;
+  if (!nombre || !apellido) throw new Error("Nombre y apellido son obligatorios.");
+
   const { data, error } = await supabase
-    .from("clientes")
+    .from("Cliente")
     .insert({
-      nombre: payload.nombre,
-      apellido: payload.apellido || null,
-      telefono: payload.telefono,
-      email: payload.email || null,
-      fecha_nacimiento: payload.fecha_nacimiento || null,
-      notas_preferencias: payload.notas_preferencias || null,
+      Nombre: nombre,
+      Apellido: apellido,
+      Telefono: payload.Telefono ?? payload.telefono ?? null,
+      E_mail: payload.E_mail ?? payload.email ?? null,
+      DNI: payload.DNI ?? payload.dni ?? null,
+      Fecha_Nacimiento: payload.Fecha_Nacimiento ?? payload.fecha_nacimiento ?? null,
+      Preferencias: payload.Preferencias ?? (
+        payload.notas_preferencias?.trim()
+          ? { notas: payload.notas_preferencias.trim() }
+          : null
+      ),
+      Total_visitas: 0,
+      Estado: true,
     })
     .select()
     .single();
 
   if (error) throw new Error(error.message);
-  return mapClienteRow(data);
+  return mapCliente(data as ClienteRaw);
 }
 
+/**
+ * Actualiza un cliente existente
+ */
 export async function actualizarCliente(
   id: string,
   cambios: Partial<CrearClientePayload>
-): Promise<ClienteRow> {
+): Promise<Cliente> {
   const updateData: Record<string, unknown> = {};
-  if (cambios.nombre !== undefined) updateData.nombre = cambios.nombre;
-  if (cambios.apellido !== undefined) updateData.apellido = cambios.apellido || null;
-  if (cambios.telefono !== undefined) updateData.telefono = cambios.telefono;
-  if (cambios.email !== undefined) updateData.email = cambios.email || null;
-  if (cambios.fecha_nacimiento !== undefined) updateData.fecha_nacimiento = cambios.fecha_nacimiento || null;
-  if (cambios.notas_preferencias !== undefined) updateData.notas_preferencias = cambios.notas_preferencias || null;
+
+  if (cambios.Nombre !== undefined || cambios.nombre !== undefined) {
+    updateData.Nombre = cambios.Nombre ?? cambios.nombre;
+  }
+  if (cambios.Apellido !== undefined || cambios.apellido !== undefined) {
+    updateData.Apellido = cambios.Apellido ?? cambios.apellido ?? "";
+  }
+  if (cambios.Telefono !== undefined || cambios.telefono !== undefined) {
+    updateData.Telefono = cambios.Telefono ?? cambios.telefono ?? null;
+  }
+  if (cambios.E_mail !== undefined || cambios.email !== undefined) {
+    updateData.E_mail = cambios.E_mail ?? cambios.email ?? null;
+  }
+  if (cambios.DNI !== undefined || cambios.dni !== undefined) {
+    updateData.DNI = cambios.DNI ?? cambios.dni ?? null;
+  }
+  if (cambios.Fecha_Nacimiento !== undefined || cambios.fecha_nacimiento !== undefined) {
+    updateData.Fecha_Nacimiento = cambios.Fecha_Nacimiento ?? cambios.fecha_nacimiento ?? null;
+  }
+  if (cambios.Preferencias !== undefined) {
+    updateData.Preferencias = cambios.Preferencias;
+  } else if (cambios.notas_preferencias !== undefined) {
+    const notas = (cambios.notas_preferencias ?? "").trim();
+    updateData.Preferencias = notas ? { notas } : null;
+  }
 
   const { data, error } = await supabase
-    .from("clientes")
+    .from("Cliente")
     .update(updateData)
-    .eq("id", id)
+    .eq("ID", id)
     .select()
     .single();
 
   if (error) throw new Error(error.message);
-  return mapClienteRow(data);
+  return mapCliente(data as ClienteRaw);
 }
 
+/**
+ * Desactiva un cliente (borrado lógico)
+ */
 export async function eliminarCliente(id: string): Promise<void> {
   const { error } = await supabase
-    .from("clientes")
-    .update({ activo: false })
-    .eq("id", id);
+    .from("Cliente")
+    .update({ Estado: false })
+    .eq("ID", id);
 
   if (error) throw new Error(error.message);
+}
+// ==================== EXPORTS DE COMPATIBILIDAD ====================
+export type ClienteRow = Cliente;
+
+export function toClienteRow(cliente: Cliente): ClienteRow {
+  return {
+    ...cliente,
+    id: cliente.ID || "",
+  };
 }

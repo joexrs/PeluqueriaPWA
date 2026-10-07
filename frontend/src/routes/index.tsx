@@ -4,13 +4,13 @@
  * Estructura de seguridad:
  * ─ /login          → PublicOnlyRoute  (redirige al dashboard si ya está autenticado)
  * ─ /dashboard      → ProtectedRoute   (requiere sesión + perfil activo)
- * ─ /citas          → ProtectedRoute + RoleGuard (admin, trabajador, recepcionista)
- * ─ /clientes       → ProtectedRoute + RoleGuard (admin, recepcionista)
- * ─ /productos      → ProtectedRoute + RoleGuard (admin)
- * ─ /servicios      → ProtectedRoute + RoleGuard (admin)
- * ─ /promociones    → ProtectedRoute + RoleGuard (admin, recepcionista)
- * ─ /ventas         → ProtectedRoute + RoleGuard (admin, recepcionista)
- * ─ /trabajadores   → ProtectedRoute + RoleGuard (admin)
+ * ─ /citas          → ProtectedRoute + RoleGuard (admin, jefe, trabajador, recepcionista)
+ * ─ /clientes       → ProtectedRoute + RoleGuard (admin, jefe, recepcionista)
+ * ─ /productos      → ProtectedRoute + RoleGuard (admin, jefe)
+ * ─ /servicios      → ProtectedRoute + RoleGuard (admin, jefe)
+ * ─ /promociones    → ProtectedRoute + RoleGuard (admin, jefe)
+ * ─ /ventas         → ProtectedRoute + RoleGuard (admin, jefe, recepcionista)
+ * ─ /trabajadores   → ProtectedRoute + RoleGuard (admin, jefe)
  * ─ /usuarios       → ProtectedRoute + RoleGuard (admin)
  * ─ *               → Redirige a /login (catch-all para rutas no definidas)
  */
@@ -56,77 +56,77 @@ export default function AppRoutes() {
           <Route
             path="/dashboard"
             element={
-              <RoleGuard rolesPermitidos={["admin", "trabajador", "recepcionista"]}>
+              <RoleGuard rolesPermitidos={["admin", "jefe", "trabajador", "recepcionista"]}>
                 <DashboardPage />
               </RoleGuard>
             }
           />
 
-          {/* Citas — admin, trabajador, recepcionista */}
+          {/* Citas — todos los roles operativos */}
           <Route
             path="/citas"
             element={
-              <RoleGuard rolesPermitidos={["admin", "trabajador", "recepcionista"]}>
+              <RoleGuard rolesPermitidos={["admin", "jefe", "trabajador", "recepcionista"]}>
                 <CitasPage />
               </RoleGuard>
             }
           />
 
-          {/* Clientes — admin, recepcionista */}
+          {/* Clientes — admin, jefe, recepcionista */}
           <Route
             path="/clientes"
             element={
-              <RoleGuard rolesPermitidos={["admin", "recepcionista"]}>
+              <RoleGuard rolesPermitidos={["admin", "jefe", "recepcionista"]}>
                 <ClientesPage />
               </RoleGuard>
             }
           />
 
-          {/* Productos — solo admin */}
+          {/* Productos — admin, jefe */}
           <Route
             path="/productos"
             element={
-              <RoleGuard rolesPermitidos={["admin"]}>
+              <RoleGuard rolesPermitidos={["admin", "jefe"]}>
                 <ProductosPage />
               </RoleGuard>
             }
           />
 
-          {/* Servicios — solo admin */}
+          {/* Servicios — admin, jefe */}
           <Route
             path="/servicios"
             element={
-              <RoleGuard rolesPermitidos={["admin"]}>
+              <RoleGuard rolesPermitidos={["admin", "jefe"]}>
                 <ServiciosPage />
               </RoleGuard>
             }
           />
 
-          {/* Promociones — admin, recepcionista */}
+          {/* Promociones — admin, jefe (según las políticas de escritura de la tabla) */}
           <Route
             path="/promociones"
             element={
-              <RoleGuard rolesPermitidos={["admin", "recepcionista"]}>
+              <RoleGuard rolesPermitidos={["admin", "jefe"]}>
                 <PromocionesPage />
               </RoleGuard>
             }
           />
 
-          {/* Ventas — admin, recepcionista */}
+          {/* Ventas — admin, jefe, recepcionista */}
           <Route
             path="/ventas"
             element={
-              <RoleGuard rolesPermitidos={["admin", "recepcionista"]}>
+              <RoleGuard rolesPermitidos={["admin", "jefe", "recepcionista"]}>
                 <VentasPage />
               </RoleGuard>
             }
           />
 
-          {/* Trabajadores — solo admin */}
+          {/* Trabajadores — admin, jefe */}
           <Route
             path="/trabajadores"
             element={
-              <RoleGuard rolesPermitidos={["admin"]}>
+              <RoleGuard rolesPermitidos={["admin", "jefe"]}>
                 <TrabajadoresPage />
               </RoleGuard>
             }

@@ -11,11 +11,10 @@ export default function ProtectedRoute({
 }: {
   children: React.ReactNode;
 }) {
-  const { session, cargando, perfil } = useAuth();
+  const { user, profile, role, loading, profileError } = useAuth();
   const location = useLocation();
 
-  // Mientras cargamos la sesión, mostramos un loader
-  if (cargando) {
+  if (loading) {
     return (
       <div className="auth-loading">
         <div className="auth-loading-spinner" />
@@ -25,17 +24,16 @@ export default function ProtectedRoute({
   }
 
   // No hay sesión → redirigir al login guardando la ruta intentada
-  if (!session) {
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // El usuario está autenticado en Supabase Auth pero no tiene perfil
-  // en la tabla `usuarios` o está inactivo → denegar acceso
-  if (perfil && !perfil.activo) {
+  const profileRole = Array.isArray(profile?.Rol) ? profile.Rol[0] : profile?.Rol;
+  if (profileError || !profile || !profile.Estado || !role || profileRole?.Estado !== true) {
     return (
       <div className="auth-loading">
         <div className="auth-error-icon">⚠️</div>
-        <p>Tu cuenta ha sido desactivada. Contacta al administrador.</p>
+        <p>{profileError ?? "La cuenta no tiene un perfil activo vinculado. Contacta al administrador."}</p>
       </div>
     );
   }

@@ -1,134 +1,80 @@
-// ─── Tipos USER-DEFINED de Supabase ──────────────────────────────────────────
+// Tipos para la tabla "Producto" segun schema.sql
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Producto = Record<string, any>;
 
-export type TipoMovimiento =
-  | "ENTRADA_COMPRA"
-  | "SALIDA_USO_SERVICIO"
-  | "SALIDA_VENTA"
-  | "AJUSTE_POSITIVO"
-  | "AJUSTE_NEGATIVO"
-  | "DEVOLUCION"
-  | "CADUCIDAD";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Movimiento = Record<string, any>;
 
-// ─── Filas crudas de Supabase ─────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Lote = Record<string, any>;
 
-export interface ProductoRow {
-  id: string;
-  categoria_id: string | null;
-  proveedor_id: string | null;
-  codigo_barras: string | null;
-  nombre: string;
-  marca: string;
-  unidad_medida: string;
-  stock_total: number;
-  stock_minimo: number;
-  precio_venta_publico: number;
-  activo: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface LoteProductoRow {
-  id: string;
-  producto_id: string;
-  numero_lote: string;
-  costo_unitario: number;
-  cantidad_inicial: number;
-  stock_actual: number;
-  fecha_ingreso: string;   // "YYYY-MM-DD"
-  fecha_caducidad: string | null;
-}
-
-export interface MovimientoInventarioRow {
-  id: string;
-  lote_id: string | null;
-  producto_id: string;
-  usuario_id: string | null;
-  tipo_movimiento: TipoMovimiento;
-  cantidad: number;
-  motivo: string;
-  fecha_movimiento: string; // ISO timestamp
-}
-
-// ─── DTOs enriquecidos ────────────────────────────────────────────────────────
-
-export interface ProductoConLotes extends ProductoRow {
-  categoria?: { id: string; nombre: string } | null;
-  proveedor?: { id: string; razon_social: string } | null;
-  lotes: LoteProductoRow[];
-  // lote más próximo a vencer (para alertas)
-  proximo_a_vencer: string | null;
-}
-
-export interface MovimientoConProducto extends MovimientoInventarioRow {
-  producto?: { nombre: string; marca: string } | null;
-  lote?: { numero_lote: string } | null;
-  usuario?: { nombre: string; apellido: string } | null;
-}
-
-// ─── Payloads ─────────────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type CategoriaProducto = Record<string, any>;
 
 export interface CrearProductoPayload {
-  nombre: string;
-  marca: string;
+  Nombre?: string;
+  Descripcion?: string | null;
+  Marca?: string | null;
+  Codigo?: string | null;
+  Precio?: number;
+  Categoria_id?: string | null;
+
+  // Alias de compatibilidad
+  nombre?: string;
+  marca?: string;
   categoria_id?: string | null;
-  proveedor_id?: string | null;
+  precio_venta_publico?: number;
   codigo_barras?: string | null;
-  unidad_medida?: string;
-  stock_minimo?: number;
-  precio_venta_publico: number;
 }
 
-export interface RegistrarEntradaPayload {
-  producto_id: string;
-  numero_lote: string;
-  costo_unitario: number;
-  cantidad: number;
-  fecha_caducidad?: string | null;
-  motivo?: string;
+export interface CrearLotePayload {
+  Producto_id: string;
+  Fecha_vencimiento: string;
+  Cantidad: number;
+
+  // Alias de compatibilidad
+  producto_id?: string;
+  cantidad?: number;
+  fecha_caducidad?: string;
 }
 
-export interface RegistrarSalidaPayload {
-  lote_id: string;
-  producto_id: string;
-  cantidad: number;
-  tipo: "SALIDA_USO_SERVICIO" | "SALIDA_VENTA" | "AJUSTE_NEGATIVO" | "CADUCIDAD" | "DEVOLUCION";
-  motivo: string;
-  usuario_id?: string;
+export interface CrearMovimientoPayload {
+  Producto_id: string;
+  Cantidad: number;
+  Tipo: "Entrada" | "Salida";
+
+  // Alias de compatibilidad
+  producto_id?: string;
+  cantidad?: number;
 }
 
 export interface FiltroProductos {
   busqueda?: string;
-  soloStockBajo?: boolean;
-  categoriaId?: string;
   soloActivos?: boolean;
+  categoriaId?: string;
 }
 
 export interface FiltroMovimientos {
   productoId?: string;
-  loteId?: string;
-  tipo?: TipoMovimiento;
   fechaDesde?: string;
   fechaHasta?: string;
+  tipo?: "Entrada" | "Salida";
 }
 
-// ─── Tipo legacy para compatibilidad con ProductosPage.tsx y MovimientoForm.tsx ──
-// (la UI actual usa este shape; se migra en paralelo)
-
-export interface Producto {
-  id: string;
-  nombre: string;
-  marca: string;
-  tipo: string;           // = categoria.nombre
-  proveedor?: string;     // = proveedor.razon_social
-  stock: number;          // = stock_total
-  stockMin: number;       // = stock_minimo
-  caducidad: string | null; // = lote más próximo a vencer
+// Tipos legacy para compatibilidad
+export interface ProductoConLotes extends Producto {
+  lotes: Lote[];
+  proximo_a_vencer?: string | null;
 }
 
-export interface Movimiento {
-  id: string;
-  productoId: string;
-  tipo: "entrada" | "salida";
+export interface RegistrarEntradaPayload {
+  producto_id: string;
   cantidad: number;
-  fecha: string;
+  fecha_caducidad: string;
+}
+
+export interface RegistrarSalidaPayload {
+  producto_id: string;
+  cantidad: number;
+  lote_id?: string;
 }

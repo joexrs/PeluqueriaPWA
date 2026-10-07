@@ -1,176 +1,216 @@
 /**
- * serviciosService.ts — acceso directo a la tabla real `servicios` y su categoría.
+ * serviciosService.ts — acceso directo a la tabla "Servicio" segun schema.sql
  */
 import { supabase } from "../../lib/supabaseClient";
+import type { Servicio, CrearServicioPayload, CategoriaServicio } from "./types";
 
-/** Tipo para la respuesta cruda de Supabase */
+// Interfaces para tipos Raw de Supabase
 interface CategoriaRaw {
-  id: unknown;
-  nombre: unknown;
-  descripcion: unknown;
-  color: unknown;
+  ID: unknown;
+  Nombre: unknown;
+  Descripcion: unknown;
+  Estado: unknown;
 }
 
 interface ServicioRaw {
-  id: unknown;
-  categoria_id: unknown;
-  nombre: unknown;
-  descripcion: unknown;
-  precio_base: unknown;
-  duracion_minutos: unknown;
-  tiempo_limpieza_minutos: unknown;
-  aforo_maximo_diario: unknown;
-  aforo_simultaneo_maximo: unknown;
-  activo: unknown;
-  categoria: unknown;
+  ID: unknown;
+  Nombre: unknown;
+  Descripcion: unknown;
+  Precio: unknown;
+  Duracion_minutos: unknown;
+  Categoria_id: unknown;
+  Estado: unknown;
+  Created_at: unknown;
+  Updated_at: unknown;
+  Categoria_Servicio: unknown;
 }
 
-export interface CategoriaServicioRow {
-  id: string;
-  nombre: string;
-  descripcion?: string | null;
-  color?: string | null;
-}
-
-export interface ServicioRow {
-  id: string;
-  categoria_id?: string | null;
-  nombre: string;
-  descripcion?: string | null;
-  precio_base: number;
-  duracion_minutos: number;
-  tiempo_limpieza_minutos: number;
-  aforo_maximo_diario: number;
-  aforo_simultaneo_maximo: number;
-  activo: boolean;
-  categoria?: CategoriaServicioRow | null;
-}
-
-export interface CrearServicioPayload {
-  nombre: string;
-  categoria_id?: string | null;
-  descripcion?: string | null;
-  precio_base: number;
-  duracion_minutos: number;
-  tiempo_limpieza_minutos?: number;
-  aforo_maximo_diario?: number;
-  aforo_simultaneo_maximo?: number;
-}
-
-function mapCategoriaRow(row: CategoriaRaw): CategoriaServicioRow {
+/**
+ * Mapea una fila cruda de Supabase al tipo Categoria
+ */
+function mapCategoria(row: CategoriaRaw): CategoriaServicio {
   return {
-    id: String(row.id ?? ""),
-    nombre: String(row.nombre ?? ""),
-    descripcion: row.descripcion ? String(row.descripcion) : null,
-    color: row.color ? String(row.color) : null,
+    ID: String(row.ID ?? ""),
+    Nombre: String(row.Nombre ?? ""),
+    Descripcion: row.Descripcion ? String(row.Descripcion) : null,
+    Estado: row.Estado !== false,
+    id: String(row.ID ?? ""),
+    nombre: String(row.Nombre ?? ""),
+    descripcion: row.Descripcion ? String(row.Descripcion) : null,
   };
 }
 
-function mapServicioRow(raw: ServicioRaw): ServicioRow {
-  const cat = raw.categoria as CategoriaRaw | null;
+/**
+ * Mapea una fila cruda de Supabase al tipo Servicio
+ */
+function mapServicio(raw: ServicioRaw): Servicio {
+  const cat = raw.Categoria_Servicio as CategoriaRaw | null;
+  const nombre = String(raw.Nombre ?? "");
+  const descripcion = raw.Descripcion ? String(raw.Descripcion) : null;
+  const precio = Number(raw.Precio ?? 0);
+  const duracion = Number(raw.Duracion_minutos ?? 30);
+  const categoriaId = raw.Categoria_id ? String(raw.Categoria_id) : null;
+  const categoria = cat ? mapCategoria(cat) : null;
   return {
-    id: String(raw.id ?? ""),
-    categoria_id: raw.categoria_id ? String(raw.categoria_id) : null,
-    nombre: String(raw.nombre ?? ""),
-    descripcion: raw.descripcion ? String(raw.descripcion) : null,
-    precio_base: Number(raw.precio_base ?? 0),
-    duracion_minutos: Number(raw.duracion_minutos ?? 0),
-    tiempo_limpieza_minutos: Number(raw.tiempo_limpieza_minutos ?? 0),
-    aforo_maximo_diario: Number(raw.aforo_maximo_diario ?? 0),
-    aforo_simultaneo_maximo: Number(raw.aforo_simultaneo_maximo ?? 0),
-    activo: Boolean(raw.activo ?? true),
-    categoria: cat ? mapCategoriaRow(cat) : null,
+    ID: String(raw.ID ?? ""),
+    Nombre: nombre,
+    Descripcion: descripcion,
+    Precio: precio,
+    Duracion_minutos: duracion,
+    Categoria_id: categoriaId,
+    Estado: raw.Estado !== false,
+    Created_at: raw.Created_at ? String(raw.Created_at) : undefined,
+    Updated_at: raw.Updated_at ? String(raw.Updated_at) : undefined,
+    Categoria_Servicio: categoria,
+    id: String(raw.ID ?? ""),
+    nombre,
+    descripcion,
+    precio_base: precio,
+    precio,
+    duracion_minutos: duracion,
+    duracion,
+    categoria_id: categoriaId,
+    activo: raw.Estado !== false,
+    categoria,
   };
 }
 
-export async function obtenerCategoriasServicios(): Promise<CategoriaServicioRow[]> {
+/**
+ * Obtiene todas las categorias de servicios
+ */
+export async function obtenerCategoriasServicios(): Promise<CategoriaServicio[]> {
   const { data, error } = await supabase
-    .from("categorias_servicios")
+    .from("Categoria_Servicio")
     .select("*")
-    .order("nombre");
+    .eq("Estado", true)
+    .order("Nombre");
 
   if (error) throw new Error(error.message);
-  return (data ?? []) as CategoriaServicioRow[];
+  return (data ?? []).map(mapCategoria);
 }
 
-export async function obtenerServicios(busqueda = ""): Promise<ServicioRow[]> {
+/**
+ * Obtiene todos los servicios (con busqueda opcional)
+ */
+export async function obtenerServicios(busqueda = ""): Promise<Servicio[]> {
   let query = supabase
-    .from("servicios")
-    .select("*, categoria:categorias_servicios(*)")
-    .eq("activo", true)
-    .order("nombre");
+    .from("Servicio")
+    .select("*, Categoria_Servicio(*)")
+    .eq("Estado", true)
+    .order("Nombre");
 
   if (busqueda.trim()) {
     const q = busqueda.trim();
-    query = query.or(`nombre.ilike.%${q}%,descripcion.ilike.%${q}%`);
+    query = query.or(`Nombre.ilike.%${q}%,Descripcion.ilike.%${q}%`);
   }
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return (data ?? []).map(mapServicioRow);
+  return (data ?? []).map(mapServicio);
 }
 
-export async function obtenerServicioPorId(id: string): Promise<ServicioRow> {
+/**
+ * Obtiene un servicio por su ID
+ */
+export async function obtenerServicioPorId(id: string): Promise<Servicio> {
   const { data, error } = await supabase
-    .from("servicios")
-    .select("*, categoria:categorias_servicios(*)")
-    .eq("id", id)
+    .from("Servicio")
+    .select("*, Categoria_Servicio(*)")
+    .eq("ID", id)
     .single();
 
   if (error) throw new Error(error.message);
-  return mapServicioRow(data);
+  return mapServicio(data as ServicioRaw);
 }
 
-export async function crearServicio(payload: CrearServicioPayload): Promise<ServicioRow> {
+/**
+ * Crea un nuevo servicio
+ */
+export async function crearServicio(payload: CrearServicioPayload): Promise<Servicio> {
+  const nombre = payload.Nombre ?? payload.nombre;
+  const precio = payload.Precio ?? payload.precio_base;
+  const duracion = payload.Duracion_minutos ?? payload.duracion_minutos;
+  if (!nombre || precio === undefined || duracion === undefined) {
+    throw new Error("Nombre, precio y duración son obligatorios.");
+  }
+
   const { data, error } = await supabase
-    .from("servicios")
+    .from("Servicio")
     .insert({
-      nombre: payload.nombre,
-      categoria_id: payload.categoria_id ?? null,
-      descripcion: payload.descripcion ?? null,
-      precio_base: payload.precio_base,
-      duracion_minutos: payload.duracion_minutos,
-      tiempo_limpieza_minutos: payload.tiempo_limpieza_minutos ?? 5,
-      aforo_maximo_diario: payload.aforo_maximo_diario ?? 10,
-      aforo_simultaneo_maximo: payload.aforo_simultaneo_maximo ?? 2,
+      Nombre: nombre,
+      Descripcion: payload.Descripcion || null,
+      Precio: precio,
+      Duracion_minutos: duracion,
+      Categoria_id: payload.Categoria_id ?? payload.categoria_id ?? null,
+      Estado: true,
     })
-    .select("*, categoria:categorias_servicios(*)")
+    .select("*, Categoria_Servicio(*)")
     .single();
 
   if (error) throw new Error(error.message);
-  return mapServicioRow(data);
+  return mapServicio(data as ServicioRaw);
 }
 
+/**
+ * Actualiza un servicio existente
+ */
 export async function actualizarServicio(
   id: string,
   cambios: Partial<CrearServicioPayload>
-): Promise<ServicioRow> {
+): Promise<Servicio> {
   const updateData: Record<string, unknown> = {};
-  if (cambios.nombre !== undefined) updateData.nombre = cambios.nombre;
-  if (cambios.categoria_id !== undefined) updateData.categoria_id = cambios.categoria_id ?? null;
-  if (cambios.descripcion !== undefined) updateData.descripcion = cambios.descripcion ?? null;
-  if (cambios.precio_base !== undefined) updateData.precio_base = cambios.precio_base;
-  if (cambios.duracion_minutos !== undefined) updateData.duracion_minutos = cambios.duracion_minutos;
-  if (cambios.tiempo_limpieza_minutos !== undefined) updateData.tiempo_limpieza_minutos = cambios.tiempo_limpieza_minutos;
-  if (cambios.aforo_maximo_diario !== undefined) updateData.aforo_maximo_diario = cambios.aforo_maximo_diario;
-  if (cambios.aforo_simultaneo_maximo !== undefined) updateData.aforo_simultaneo_maximo = cambios.aforo_simultaneo_maximo;
+  
+  if (cambios.Nombre !== undefined || cambios.nombre !== undefined) {
+    updateData.Nombre = cambios.Nombre ?? cambios.nombre;
+  }
+  if (cambios.Descripcion !== undefined) updateData.Descripcion = cambios.Descripcion || null;
+  if (cambios.Precio !== undefined || cambios.precio_base !== undefined) {
+    updateData.Precio = cambios.Precio ?? cambios.precio_base;
+  }
+  if (cambios.Duracion_minutos !== undefined || cambios.duracion_minutos !== undefined) {
+    updateData.Duracion_minutos = cambios.Duracion_minutos ?? cambios.duracion_minutos;
+  }
+  if (cambios.Categoria_id !== undefined || cambios.categoria_id !== undefined) {
+    updateData.Categoria_id = cambios.Categoria_id ?? cambios.categoria_id ?? null;
+  }
 
   const { data, error } = await supabase
-    .from("servicios")
+    .from("Servicio")
     .update(updateData)
-    .eq("id", id)
-    .select("*, categoria:categorias_servicios(*)")
+    .eq("ID", id)
+    .select("*, Categoria_Servicio(*)")
     .single();
 
   if (error) throw new Error(error.message);
-  return mapServicioRow(data);
+  return mapServicio(data as ServicioRaw);
 }
 
+/**
+ * Desactiva un servicio (borrado logico)
+ */
 export async function eliminarServicio(id: string): Promise<void> {
   const { error } = await supabase
-    .from("servicios")
-    .update({ activo: false })
-    .eq("id", id);
+    .from("Servicio")
+    .update({ Estado: false })
+    .eq("ID", id);
 
   if (error) throw new Error(error.message);
+}
+// ==================== EXPORTS DE COMPATIBILIDAD ====================
+export type ServicioRow = Servicio;
+export type CategoriaServicioRow = CategoriaServicio;
+
+export function toServicioRow(servicio: Servicio): ServicioRow {
+  return {
+    ...servicio,
+    id: servicio.ID || "",
+  };
+}
+
+export function toCategoriaRow(cat: CategoriaServicio): CategoriaServicioRow {
+  return {
+    ...cat,
+    id: cat.ID || "",
+    nombre: cat.Nombre || "",
+  };
 }
