@@ -1,26 +1,23 @@
 import { useState, type FormEvent } from "react";
-import type { CategoriaProductoRow, ProveedorRow } from "./productosService";
+import type { CategoriaProductoRow } from "./productosService";
 import type { CrearProductoPayload } from "./types";
 
 interface Props {
   categorias: CategoriaProductoRow[];
-  proveedores: ProveedorRow[];
   onSubmit: (data: CrearProductoPayload) => Promise<void> | void;
   onCancel: () => void;
 }
 
 const formVacio = {
   nombre: "",
+  descripcion: "",
   marca: "",
   categoria_id: "",
-  proveedor_id: "",
   codigo_barras: "",
-  unidad_medida: "UNIDAD",
-  stock_minimo: "5",
   precio_venta_publico: "",
 };
 
-export default function ProductoForm({ categorias, proveedores, onSubmit, onCancel }: Props) {
+export default function ProductoForm({ categorias, onSubmit, onCancel }: Props) {
   const [form, setForm] = useState(formVacio);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,11 +25,10 @@ export default function ProductoForm({ categorias, proveedores, onSubmit, onCanc
     event.preventDefault();
 
     const nombre = form.nombre.trim();
-    const marca = form.marca.trim();
     const precio = Number(form.precio_venta_publico);
 
-    if (!nombre || !marca) {
-      setError("Nombre y marca son obligatorios.");
+    if (!nombre) {
+      setError("El nombre es obligatorio.");
       return;
     }
     if (Number.isNaN(precio) || precio < 0) {
@@ -42,14 +38,12 @@ export default function ProductoForm({ categorias, proveedores, onSubmit, onCanc
 
     try {
       await onSubmit({
-        nombre,
-        marca,
-        categoria_id: form.categoria_id || null,
-        proveedor_id: form.proveedor_id || null,
-        codigo_barras: form.codigo_barras.trim() || null,
-        unidad_medida: form.unidad_medida || "UNIDAD",
-        stock_minimo: Number(form.stock_minimo) || 0,
-        precio_venta_publico: precio,
+        Nombre: nombre,
+        Descripcion: form.descripcion.trim() || null,
+        Marca: form.marca.trim() || null,
+        Categoria_id: form.categoria_id || null,
+        Codigo: form.codigo_barras.trim() || null,
+        Precio: precio,
       });
       setError(null);
       setForm(formVacio);
@@ -59,17 +53,26 @@ export default function ProductoForm({ categorias, proveedores, onSubmit, onCanc
   }
 
   return (
-    <form className="producto-form" onSubmit={handleSubmit}>
+    <form className="inventario-producto-form" onSubmit={handleSubmit}>
       <h2>Nuevo producto</h2>
 
       {error && <div className="banner banner-error">⚠️ {error}</div>}
 
       <label>
-        Nombre
+        Nombre *
         <input
           type="text"
           value={form.nombre}
           onChange={(e) => setForm((prev) => ({ ...prev, nombre: e.target.value }))}
+        />
+      </label>
+
+      <label>
+        Descripción
+        <textarea
+          rows={3}
+          value={form.descripcion}
+          onChange={(e) => setForm((prev) => ({ ...prev, descripcion: e.target.value }))}
         />
       </label>
 
@@ -98,22 +101,7 @@ export default function ProductoForm({ categorias, proveedores, onSubmit, onCanc
       </label>
 
       <label>
-        Proveedor
-        <select
-          value={form.proveedor_id}
-          onChange={(e) => setForm((prev) => ({ ...prev, proveedor_id: e.target.value }))}
-        >
-          <option value="">Sin proveedor</option>
-          {proveedores.map((proveedor) => (
-            <option key={proveedor.id} value={proveedor.id}>
-              {proveedor.razon_social}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label>
-        Código de barras
+        Código
         <input
           type="text"
           value={form.codigo_barras}
@@ -122,26 +110,7 @@ export default function ProductoForm({ categorias, proveedores, onSubmit, onCanc
       </label>
 
       <label>
-        Unidad de medida
-        <input
-          type="text"
-          value={form.unidad_medida}
-          onChange={(e) => setForm((prev) => ({ ...prev, unidad_medida: e.target.value }))}
-        />
-      </label>
-
-      <label>
-        Stock mínimo
-        <input
-          type="number"
-          min="0"
-          value={form.stock_minimo}
-          onChange={(e) => setForm((prev) => ({ ...prev, stock_minimo: e.target.value }))}
-        />
-      </label>
-
-      <label>
-        Precio venta público
+        Precio *
         <input
           type="number"
           min="0"

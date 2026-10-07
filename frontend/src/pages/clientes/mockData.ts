@@ -1,28 +1,8 @@
 import type { Cliente } from "./types";
 
+// Mock data para desarrollo sin conexion a BD
 export const CLIENTES_INICIALES: Cliente[] = [
-  {
-    id: "c1",
-    nombre: "Ana",
-    apellido: "García",
-    telefono: "612345678",
-    email: "ana.garcia@email.com",
-    fechaNacimiento: "1992-04-18",
-  },
-  {
-    id: "c2",
-    nombre: "Laura",
-    apellido: "Martín",
-    telefono: "623456789",
-    email: "laura.martin@email.com",
-    fechaNacimiento: "1988-11-03",
-  },
-  {
-    id: "c3",
-    nombre: "María",
-    apellido: "Pérez",
-    telefono: "634567890",
-    email: "maria.perez@email.com",
-    fechaNacimiento: "1995-08-27",
-  },
+  { ID: "c1", Nombre: "Juan", Apellido: "Pérez", Telefono: "999888777", E_mail: "juan@correo.com", Estado: true },
+  { ID: "c2", Nombre: "María", Apellido: "García", Telefono: "999666555", E_mail: "maria@correo.com", Estado: true },
+  { ID: "c3", Nombre: "Pedro", Apellido: "Rodríguez", Telefono: "999444333", E_mail: "pedro@correo.com", Estado: false },
 ];

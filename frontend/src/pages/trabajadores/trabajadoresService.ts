@@ -1,7 +1,5 @@
 /**
- * trabajadoresService.ts
- * Perfil específico para personal de peluquería, usando la tabla real de usuarios
- * filtrada por rol = 'trabajador'.
+ * Consultas de trabajadores y servicios usando las tablas definidas en schema.sql.
  */
 import { supabase } from "../../lib/supabaseClient";
 
@@ -17,64 +15,95 @@ export interface TrabajadorRow {
   servicios: string[];
 }
 
-export async function obtenerTrabajadores(soloActivos = true): Promise<TrabajadorRow[]> {
-  const { data: usuarios, error: usuariosError } = await supabase
-    .from("usuarios")
-    .select("id, nombre, apellido, email, telefono, color_agenda, comision_porcentaje, activo")
-    .eq("rol", "trabajador")
-    .order("nombre", { ascending: true });
-
-  if (usuariosError) throw new Error(usuariosError.message);
-
-  if (soloActivos) {
-    const activos = (usuarios ?? []).filter((usuario) => usuario.activo !== false);
-    return await mapearServiciosPorTrabajador(activos);
-  }
-
-  return await mapearServiciosPorTrabajador(usuarios ?? []);
+interface UsuarioTrabajadorRaw {
+  ID: unknown;
+  Nombre: unknown;
+  Apellido: unknown;
+  E_mail: unknown;
+  Telefono: unknown;
+  Color_agenda: unknown;
+  Comision_porcentaje: unknown;
+  Estado: unknown;
 }
 
-async function mapearServiciosPorTrabajador(
-  usuarios: Array<{
-    id: string;
-    nombre: string;
-    apellido: string;
-    email: string;
-    telefono: string | null;
-    color_agenda: string | null;
-    comision_porcentaje: number | null;
-    activo: boolean;
-  }>
-): Promise<TrabajadorRow[]> {
-  const ids = usuarios.map((usuario) => usuario.id);
+interface AsignacionRaw {
+  usuario_id: unknown;
+  Servicio: { Nombre?: unknown } | null;
+}
 
-  const { data: asignaciones, error: asignacionesError } = await supabase
-    .from("usuario_servicios")
-    .select("usuario_id, servicio:servicios(nombre)")
-    .in("usuario_id", ids.length ? ids : ["__no_match__"]);
+export async function obtenerTrabajadores(soloActivos = true): Promise<TrabajadorRow[]> {
+  const { data: rol, error: rolError } = await supabase
+    .from("Rol")
+    .select("ID")
+    .eq("Nombre", "trabajador")
+    .eq("Estado", true)
+    .single();
+  if (rolError) throw new Error(rolError.message);
 
-  if (asignacionesError) throw new Error(asignacionesError.message);
+  let query = supabase
+    .from("Usuario")
+    .select("ID, Nombre, Apellido, E_mail, Telefono, Color_agenda, Comision_porcentaje, Estado")
+    .eq("Rol_id", rol.ID)
+    .order("Nombre", { ascending: true });
+  if (soloActivos) query = query.eq("Estado", true);
 
+  const { data: usuarios, error: usuariosError } = await query;
+  if (usuariosError) throw new Error(usuariosError.message);
+
+  const trabajadores = (usuarios ?? []) as UsuarioTrabajadorRaw[];
+  const ids = trabajadores.map((usuario) => String(usuario.ID));
+  const serviciosPorUsuario = await obtenerServiciosPorTrabajador(ids);
+
+  return trabajadores.map((usuario) => {
+    const id = String(usuario.ID);
+    return {
+      id,
+      nombre: String(usuario.Nombre ?? ""),
+      apellido: String(usuario.Apellido ?? ""),
+      email: String(usuario.E_mail ?? ""),
+      telefono: usuario.Telefono ? String(usuario.Telefono) : null,
+      color_agenda: usuario.Color_agenda ? String(usuario.Color_agenda) : null,
+      comision_porcentaje:
+        usuario.Comision_porcentaje == null ? null : Number(usuario.Comision_porcentaje),
+      activo: usuario.Estado !== false,
+      servicios: serviciosPorUsuario.get(id) ?? [],
+    };
+  });
+}
+
+export async function obtenerIdsTrabajadoresPorServicio(servicioId: string): Promise<string[]> {
+  if (!servicioId) return [];
+  const { data, error } = await supabase
+    .from("Trabajador_Servicio")
+    .select("usuario_id")
+    .eq("Servicio_id", servicioId)
+    .eq("Estado", true);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => String(row.usuario_id));
+}
+
+async function obtenerServiciosPorTrabajador(
+  usuarioIds: string[],
+): Promise<Map<string, string[]>> {
   const serviciosPorUsuario = new Map<string, string[]>();
-  for (const item of asignaciones ?? []) {
-    const usuarioId = String((item as { usuario_id?: string }).usuario_id ?? "");
-    const nombreServicio = (item as { servicio?: { nombre?: string } }).servicio?.nombre;
-    if (!usuarioId || !nombreServicio) continue;
+  if (usuarioIds.length === 0) return serviciosPorUsuario;
 
-    const actuales = serviciosPorUsuario.get(usuarioId) ?? [];
-    actuales.push(nombreServicio);
-    serviciosPorUsuario.set(usuarioId, actuales);
+  const { data, error } = await supabase
+    .from("Trabajador_Servicio")
+    .select("usuario_id, Servicio:Servicio!FK_TrabajadorServicio_Servicio(Nombre)")
+    .in("usuario_id", usuarioIds)
+    .eq("Estado", true);
+  if (error) throw new Error(error.message);
+
+  for (const asignacion of (data ?? []) as AsignacionRaw[]) {
+    const usuarioId = String(asignacion.usuario_id ?? "");
+    const nombre = String(asignacion.Servicio?.Nombre ?? "");
+    if (!usuarioId || !nombre) continue;
+
+    const servicios = serviciosPorUsuario.get(usuarioId) ?? [];
+    servicios.push(nombre);
+    serviciosPorUsuario.set(usuarioId, servicios);
   }
 
-  return usuarios.map((usuario) => ({
-    id: usuario.id,
-    nombre: usuario.nombre,
-    apellido: usuario.apellido,
-    email: usuario.email,
-    telefono: usuario.telefono,
-    color_agenda: usuario.color_agenda,
-    comision_porcentaje: usuario.comision_porcentaje,
-    activo: usuario.activo,
-    servicios: serviciosPorUsuario.get(usuario.id) ?? [],
-  }));
+  return serviciosPorUsuario;
 }

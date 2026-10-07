@@ -35,7 +35,7 @@ export const validators = {
     validate: (value: string) => {
       if (!value.trim()) return { valid: true };
       // Allow formats: +52 123 456 7890, 123-456-7890, (123) 456-7890, 10+ digits
-      const phoneRegex = /^[\d\s\-\(\)\+]{10,}$/;
+      const phoneRegex = /^[\d\s()+-]{10,}$/;
       const digitsOnly = value.replace(/\D/g, "");
       return {
         valid: digitsOnly.length >= 10 || phoneRegex.test(value),
@@ -120,7 +120,7 @@ export const validators = {
     validate: (value: string) => {
       if (!value.trim()) return { valid: true };
       // Allow alphanumeric, hyphens, and common barcode characters
-      const barcodeRegex = /^[\w\-]{3,30}$/;
+      const barcodeRegex = /^[\w-]{3,30}$/;
       return {
         valid: barcodeRegex.test(value),
         error: barcodeRegex.test(value) ? undefined : message,
@@ -132,7 +132,7 @@ export const validators = {
     validate: (value: string) => {
       if (!value.trim()) return { valid: true };
       // Allow alphanumeric with hyphens, slashes
-      const lotRegex = /^[\w\-\/]{2,30}$/;
+      const lotRegex = /^[\w/-]{2,30}$/;
       return {
         valid: lotRegex.test(value),
         error: lotRegex.test(value) ? undefined : message,

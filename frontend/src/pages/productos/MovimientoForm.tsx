@@ -3,26 +3,32 @@ import type { ProductoConLotes, RegistrarEntradaPayload, RegistrarSalidaPayload 
 
 interface Props {
   productos: ProductoConLotes[];
+  productoInicialId?: string | null;
   onSubmit: (data: RegistrarEntradaPayload | RegistrarSalidaPayload) => void | Promise<void>;
   onCancel: () => void;
 }
 
-export default function MovimientoForm({ productos, onSubmit, onCancel }: Props) {
-  const [productoId, setProductoId] = useState(productos[0]?.id ?? "");
+export default function MovimientoForm({ productos, productoInicialId, onSubmit, onCancel }: Props) {
+  const [productoId, setProductoId] = useState(
+    productoInicialId ?? productos[0]?.id ?? "",
+  );
+  const [loteId, setLoteId] = useState(() => {
+    const producto = productos.find((item) => item.id === (productoInicialId ?? productos[0]?.id));
+    return producto?.lotes.find((lote) => Number(lote.Cantidad) > 0)?.id ?? "";
+  });
   const [tipo, setTipo] = useState<"ENTRADA_COMPRA" | "SALIDA_USO_SERVICIO">("ENTRADA_COMPRA");
   const [cantidad, setCantidad] = useState("");
-  const [numeroLote, setNumeroLote] = useState("");
-  const [costoUnitario, setCostoUnitario] = useState("");
   const [fechaCaducidad, setFechaCaducidad] = useState("");
-  const [motivo, setMotivo] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
 
   const productoSeleccionado = useMemo(
     () => productos.find((p) => p.id === productoId) ?? null,
     [productos, productoId]
   );
+  const loteSeleccionado = productoSeleccionado?.lotes.find((lote) => lote.id === loteId) ?? null;
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const cantidadNum = Number(cantidad);
 
@@ -36,41 +42,42 @@ export default function MovimientoForm({ productos, onSubmit, onCancel }: Props)
     }
 
     if (tipo === "ENTRADA_COMPRA") {
-      if (!numeroLote.trim()) {
-        setError("Es necesario indicar el número de lote.");
+      if (!fechaCaducidad) {
+        setError("Indica la fecha de caducidad del lote.");
         return;
       }
-      const costo = Number(costoUnitario);
-      if (!costoUnitario || Number.isNaN(costo) || costo < 0) {
-        setError("El costo unitario no es válido.");
+    } else {
+      if (!loteSeleccionado || Number(loteSeleccionado.Cantidad) <= 0) {
+        setError("Selecciona un lote que tenga existencias.");
         return;
       }
-
-      void onSubmit({
-        producto_id: productoId,
-        numero_lote: numeroLote.trim(),
-        costo_unitario: costo,
-        cantidad: cantidadNum,
-        fecha_caducidad: fechaCaducidad || null,
-        motivo: motivo.trim() || `Entrada de producto ${productoSeleccionado?.nombre ?? ""}`,
-      });
-      return;
+      if (cantidadNum > Number(loteSeleccionado.Cantidad)) {
+        setError("La cantidad supera las existencias del lote seleccionado.");
+        return;
+      }
     }
 
-    const loteId = productoSeleccionado?.lotes?.[0]?.id ?? "";
-    if (!loteId) {
-      setError("Este producto no tiene lote disponible para registrar una salida.");
-      return;
+    try {
+      setGuardando(true);
+      setError(null);
+      if (tipo === "ENTRADA_COMPRA") {
+        await onSubmit({
+          producto_id: productoId,
+          cantidad: cantidadNum,
+          fecha_caducidad: fechaCaducidad,
+        });
+      } else {
+        await onSubmit({
+          producto_id: productoId,
+          cantidad: cantidadNum,
+          lote_id: loteId,
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo registrar el movimiento.");
+    } finally {
+      setGuardando(false);
     }
-
-    void onSubmit({
-      lote_id: loteId,
-      producto_id: productoId,
-      cantidad: cantidadNum,
-      tipo: "SALIDA_USO_SERVICIO",
-      motivo: motivo.trim() || `Salida de producto ${productoSeleccionado?.nombre ?? ""}`,
-      usuario_id: undefined,
-    });
   }
 
   return (
@@ -82,7 +89,15 @@ export default function MovimientoForm({ productos, onSubmit, onCancel }: Props)
 
       <label>
         Producto
-        <select value={productoId} onChange={(e) => setProductoId(e.target.value)}>
+        <select
+          value={productoId}
+          onChange={(e) => {
+            const id = e.target.value;
+            const producto = productos.find((item) => item.id === id);
+            setProductoId(id);
+            setLoteId(producto?.lotes.find((lote) => Number(lote.Cantidad) > 0)?.id ?? "");
+          }}
+        >
           {productos.map((p) => (
             <option key={p.id} value={p.id}>
               {p.nombre} (stock: {p.stock_total})
@@ -92,49 +107,61 @@ export default function MovimientoForm({ productos, onSubmit, onCancel }: Props)
       </label>
 
       <div className="toggle-group">
-        <button type="button" className={`toggle-btn ${tipo === "ENTRADA_COMPRA" ? "active" : ""}`} onClick={() => setTipo("ENTRADA_COMPRA")}>
+        <button type="button" className={`toggle-btn ${tipo === "ENTRADA_COMPRA" ? "active" : ""}`} onClick={() => setTipo("ENTRADA_COMPRA")} disabled={guardando}>
           Entrada
         </button>
-        <button type="button" className={`toggle-btn ${tipo === "SALIDA_USO_SERVICIO" ? "active" : ""}`} onClick={() => setTipo("SALIDA_USO_SERVICIO")}>
+        <button type="button" className={`toggle-btn ${tipo === "SALIDA_USO_SERVICIO" ? "active" : ""}`} onClick={() => setTipo("SALIDA_USO_SERVICIO")} disabled={guardando}>
           Salida
         </button>
       </div>
 
+      {tipo === "SALIDA_USO_SERVICIO" && (
+        <label>
+          Lote
+          <select
+            value={loteId}
+            onChange={(e) => setLoteId(e.target.value)}
+            required
+          >
+            <option value="">Selecciona un lote</option>
+            {productoSeleccionado?.lotes
+              .filter((lote) => Number(lote.Cantidad) > 0)
+              .map((lote) => (
+                <option key={lote.id} value={lote.id}>
+                  Vence {lote.Fecha_vencimiento} · {lote.Cantidad} disponibles
+                </option>
+              ))}
+          </select>
+        </label>
+      )}
+
       <label>
         Cantidad
-        <input type="number" min={1} value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Ej. 5" />
+        <input
+          type="number"
+          min={1}
+          max={tipo === "SALIDA_USO_SERVICIO" ? Number(loteSeleccionado?.Cantidad ?? 0) : undefined}
+          value={cantidad}
+          onChange={(e) => setCantidad(e.target.value)}
+          placeholder="Ej. 5"
+        />
       </label>
 
       {tipo === "ENTRADA_COMPRA" && (
         <>
           <label>
-            Número de lote
-            <input type="text" value={numeroLote} onChange={(e) => setNumeroLote(e.target.value)} placeholder="Ej. L-1001" />
-          </label>
-
-          <label>
-            Costo unitario
-            <input type="number" min="0" step="0.01" value={costoUnitario} onChange={(e) => setCostoUnitario(e.target.value)} placeholder="0.00" />
-          </label>
-
-          <label>
-            Fecha de caducidad (opcional)
-            <input type="date" value={fechaCaducidad} onChange={(e) => setFechaCaducidad(e.target.value)} />
+            Fecha de caducidad *
+            <input type="date" min={new Date().toISOString().slice(0, 10)} value={fechaCaducidad} onChange={(e) => setFechaCaducidad(e.target.value)} required />
           </label>
         </>
       )}
 
-      <label>
-        Motivo
-        <input type="text" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Ajuste de stock" />
-      </label>
-
       <div className="form-actions">
-        <button type="button" className="btn btn-ghost" onClick={onCancel}>
+        <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={guardando}>
           Cancelar
         </button>
-        <button type="submit" className="btn btn-primary">
-          Guardar movimiento
+        <button type="submit" className="btn btn-primary" disabled={guardando || !productos.length}>
+          {guardando ? "Guardando..." : "Guardar movimiento"}
         </button>
       </div>
     </form>

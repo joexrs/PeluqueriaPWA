@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { obtenerServicios, type ServicioRow } from "../servicios/serviciosService";
 import {
   crearUsuario,
   eliminarUsuario,
   obtenerUsuarios,
   actualizarUsuario,
+  obtenerServiciosTrabajador,
+  guardarServiciosTrabajador,
   type RolUsuario,
   type UsuarioRow,
 } from "./usuariosService";
@@ -13,24 +16,30 @@ interface FormState {
   nombre: string;
   apellido: string;
   email: string;
+  usuario: string;
+  password: string;
   dni: string;
   telefono: string;
   rol: RolUsuario;
   color_agenda: string;
   comision_porcentaje: string;
   activo: boolean;
+  servicios_ids: string[];
 }
 
 const formVacio: FormState = {
   nombre: "",
   apellido: "",
   email: "",
+  usuario: "",
+  password: "",
   dni: "",
   telefono: "",
   rol: "trabajador",
   color_agenda: "#3B82F6",
   comision_porcentaje: "0",
   activo: true,
+  servicios_ids: [],
 };
 
 export default function UsuariosPage() {
@@ -39,8 +48,10 @@ export default function UsuariosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [formVisible, setFormVisible] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const [form, setForm] = useState<FormState>(formVacio);
-  const [creando, setCreando] = useState(false);
+  const [servicios, setServicios] = useState<ServicioRow[]>([]);
 
   useEffect(() => {
     let cancelado = false;
@@ -48,9 +59,10 @@ export default function UsuariosPage() {
     const cargar = async () => {
       try {
         setLoading(true);
-        const data = await obtenerUsuarios();
+        const [data, serviciosData] = await Promise.all([obtenerUsuarios(), obtenerServicios()]);
         if (!cancelado) {
           setUsuarios(data);
+          setServicios(serviciosData);
           setError(null);
         }
       } catch (err) {
@@ -84,24 +96,43 @@ export default function UsuariosPage() {
   function resetFormulario() {
     setForm(formVacio);
     setEditandoId(null);
+    setFormVisible(false);
     setError(null);
-    setCreando(true);
   }
 
-  function abrirEdicion(usuario: UsuarioRow) {
+  function abrirCreacion() {
+    setEditandoId(null);
+    setForm(formVacio);
+    setFormVisible(true);
+    setError(null);
+  }
+
+  async function abrirEdicion(usuario: UsuarioRow) {
     setEditandoId(usuario.id);
+    setFormVisible(true);
     setForm({
       nombre: usuario.nombre,
       apellido: usuario.apellido,
       email: usuario.email,
+      usuario: String(usuario.Usuario ?? ""),
+      password: "",
       dni: usuario.dni ?? "",
       telefono: usuario.telefono ?? "",
       rol: usuario.rol,
       color_agenda: usuario.color_agenda ?? "#3B82F6",
       comision_porcentaje: String(usuario.comision_porcentaje ?? 0),
       activo: usuario.activo,
+      servicios_ids: [],
     });
     setError(null);
+    if (usuario.rol === "trabajador") {
+      try {
+        const ids = await obtenerServiciosTrabajador(usuario.id);
+        setForm((actual) => ({ ...actual, servicios_ids: ids }));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudieron cargar los servicios del trabajador.");
+      }
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -112,30 +143,48 @@ export default function UsuariosPage() {
       return;
     }
 
+    if (!editandoId && (!form.usuario.trim() || !form.password)) {
+      setError("Completa el nombre de usuario y la contraseña.");
+      return;
+    }
+
+    const comision = Number(form.comision_porcentaje);
+    if (!Number.isFinite(comision) || comision < 0 || comision > 100) {
+      setError("La comisión debe ser un número entre 0 y 100.");
+      return;
+    }
+
     const payload = {
       nombre: form.nombre.trim(),
       apellido: form.apellido.trim(),
       email: form.email.trim(),
+      usuario: form.usuario.trim(),
+      password: form.password,
       dni: form.dni.trim() || null,
       telefono: form.telefono.trim() || null,
       rol: form.rol,
       color_agenda: form.color_agenda || "#3B82F6",
-      comision_porcentaje: Number(form.comision_porcentaje) || 0,
+      comision_porcentaje: comision,
       activo: form.activo,
+      servicios_ids: form.rol === "trabajador" ? form.servicios_ids : [],
     };
 
     try {
+      setGuardando(true);
       if (editandoId) {
         const actualizado = await actualizarUsuario(editandoId, payload);
+        await guardarServiciosTrabajador(editandoId, payload.servicios_ids);
         setUsuarios((prev) => prev.map((usuario) => (usuario.id === actualizado.id ? actualizado : usuario)));
       } else {
         const creado = await crearUsuario(payload);
+        await guardarServiciosTrabajador(creado.id, payload.servicios_ids);
         setUsuarios((prev) => [...prev, creado]);
       }
       resetFormulario();
-      setCreando(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el usuario.");
+    } finally {
+      setGuardando(false);
     }
   }
 
@@ -165,8 +214,11 @@ export default function UsuariosPage() {
           disabled={loading || usuarios.length === 0}
         />
 
-        <button className="btn btn-primary" onClick={resetFormulario}>
-          + Nuevo usuario
+        <span className="usuario-auth-notice">
+          Las cuentas nuevas se crean con los roles recepcionista o trabajador.
+        </span>
+        <button type="button" className="btn btn-primary" onClick={abrirCreacion} disabled={loading}>
+          Nuevo usuario
         </button>
       </div>
 
@@ -177,14 +229,14 @@ export default function UsuariosPage() {
           <div className="empty-icon">⏳</div>
           <strong>Cargando usuarios...</strong>
         </div>
-      ) : usuarios.length === 0 && !creando ? (
+      ) : usuarios.length === 0 && !formVisible ? (
         <div className="empty-state">
           <div className="empty-icon">👥</div>
           <strong>Todavía no hay usuarios registrados</strong>
         </div>
       ) : (
         <div className="usuarios-layout">
-          {usuarios.length > 0 && (
+          {usuarios.length > 0 ? (
             <div className="panel-table">
               <table className="tabla-usuarios">
                 <thead>
@@ -232,9 +284,14 @@ export default function UsuariosPage() {
                 </tbody>
               </table>
             </div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-icon">👥</div>
+              <strong>Todavía no hay usuarios registrados</strong>
+            </div>
           )}
 
-          <form className="usuario-form" onSubmit={handleSubmit}>
+          {formVisible && <form className="usuario-form" onSubmit={handleSubmit}>
             <h2>{editandoId ? "Editar usuario" : "Nuevo usuario"}</h2>
 
             <label>
@@ -261,8 +318,40 @@ export default function UsuariosPage() {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                readOnly={Boolean(editandoId)}
+                required
+                aria-describedby="usuario-email-ayuda"
               />
+              <small id="usuario-email-ayuda">
+                {editandoId ? "El correo de acceso se administra desde Supabase Auth." : "Se usará para iniciar sesión."}
+              </small>
             </label>
+
+            {!editandoId && (
+              <>
+                <label>
+                  Usuario
+                  <input
+                    type="text"
+                    value={form.usuario}
+                    onChange={(e) => setForm((prev) => ({ ...prev, usuario: e.target.value }))}
+                    autoComplete="username"
+                    required
+                  />
+                </label>
+
+                <label>
+                  Contraseña
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
+                    autoComplete="new-password"
+                    required
+                  />
+                </label>
+              </>
+            )}
 
             <label>
               DNI
@@ -288,11 +377,37 @@ export default function UsuariosPage() {
                 value={form.rol}
                 onChange={(e) => setForm((prev) => ({ ...prev, rol: e.target.value as RolUsuario }))}
               >
-                <option value="admin">Admin</option>
-                <option value="trabajador">Trabajador</option>
+                {editandoId && form.rol !== "recepcionista" && form.rol !== "trabajador" && (
+                  <option value={form.rol}>{form.rol}</option>
+                )}
                 <option value="recepcionista">Recepcionista</option>
+                <option value="trabajador">Trabajador</option>
               </select>
             </label>
+
+            {form.rol === "trabajador" && (
+              <fieldset className="usuario-servicios">
+                <legend>Servicios que puede realizar</legend>
+                {servicios.length === 0 ? <small>No hay servicios activos disponibles.</small> : servicios.map((servicio) => {
+                  const id = String(servicio.id ?? servicio.ID);
+                  return (
+                    <label key={id}>
+                      <input
+                        type="checkbox"
+                        checked={form.servicios_ids.includes(id)}
+                        onChange={(event) => setForm((prev) => ({
+                          ...prev,
+                          servicios_ids: event.target.checked
+                            ? [...prev.servicios_ids, id]
+                            : prev.servicios_ids.filter((actual) => actual !== id),
+                        }))}
+                      />
+                      {servicio.nombre}
+                    </label>
+                  );
+                })}
+              </fieldset>
+            )}
 
             <label>
               Color de agenda
@@ -327,17 +442,14 @@ export default function UsuariosPage() {
             </label>
 
             <div className="form-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => {
-                setCreando(false);
-                setEditandoId(null);
-              }}>
+              <button type="button" className="btn btn-ghost" onClick={resetFormulario} disabled={guardando}>
                 Cancelar
               </button>
-              <button type="submit" className="btn btn-primary">
-                {editandoId ? "Guardar cambios" : "Guardar usuario"}
+              <button type="submit" className="btn btn-primary" disabled={guardando}>
+                {guardando ? "Guardando..." : editandoId ? "Guardar cambios" : "Crear usuario"}
               </button>
             </div>
-          </form>
+          </form>}
         </div>
       )}
     </div>

@@ -31,38 +31,42 @@ async function fetchKpis() {
   const [citasHoyRes, ventasHoyRes, productosRes, pendientesRes] =
     await Promise.all([
       supabase
-        .from("citas")
-        .select("id", { count: "exact", head: true })
-        .eq("fecha", fechaHoy)
-        .neq("estado", "CANCELADA"),
+        .from("Cita")
+        .select("ID", { count: "exact", head: true })
+        .eq("fecha_cita", fechaHoy)
+        .eq("Estado", true),
 
       supabase
-        .from("ventas")
-        .select("monto_total")
-        .gte("created_at", `${fechaHoy}T00:00:00`)
-        .lte("created_at", `${fechaHoy}T23:59:59`),
+        .from("Venta")
+        .select("Total")
+        .gte("Fecha_Venta", `${fechaHoy}T00:00:00`)
+        .lte("Fecha_Venta", `${fechaHoy}T23:59:59`),
 
       supabase
-        .from("productos")
-        .select("stock_total, stock_minimo")
-        .eq("activo", true),
+        .from("Producto")
+        .select("Stock_total")
+        .eq("Estado", true),
 
       supabase
-        .from("citas")
-        .select("id", { count: "exact", head: true })
-        .eq("estado", "PENDIENTE"),
+        .from("Cita")
+        .select("ID", { count: "exact", head: true })
+        .eq("Estado", true),
     ]);
+
+  if (citasHoyRes.error) throw new Error(citasHoyRes.error.message);
+  if (ventasHoyRes.error) throw new Error(ventasHoyRes.error.message);
+  if (productosRes.error) throw new Error(productosRes.error.message);
+  if (pendientesRes.error) throw new Error(pendientesRes.error.message);
 
   const citasHoy = citasHoyRes.count ?? 0;
 
   const ventasHoy = (ventasHoyRes.data ?? []).reduce(
-    (sum: number, v: { monto_total: number }) => sum + v.monto_total,
+    (sum: number, venta: { Total: number }) => sum + Number(venta.Total ?? 0),
     0
   );
 
   const alertasInventario = (productosRes.data ?? []).filter(
-    (p: { stock_total: number; stock_minimo: number }) =>
-      p.stock_total <= p.stock_minimo
+    (producto: { Stock_total: number }) => Number(producto.Stock_total) <= 0
   ).length;
 
   const citasPorConfirmar = pendientesRes.count ?? 0;
@@ -76,47 +80,58 @@ async function fetchProximasCitas(): Promise<ProximaCita[]> {
   const fechaHoy = hoy();
 
   const { data, error } = await supabase
-    .from("citas")
+    .from("Cita")
     .select(`
-      id,
+      ID,
       hora_inicio,
-      estado,
-      cliente:clientes ( nombre, apellido ),
-      trabajador:usuarios!citas_trabajador_id_fkey ( nombre, apellido, color_agenda ),
-      servicios:detalle_citas_servicios (
-        servicio:servicios ( nombre )
+      Estado,
+      Cliente:Cliente!FK_Cita_Cliente ( Nombre, Apellido ),
+      servicios:Cita_Servicio!FK_CitaServ_Cita (
+        Servicio:Servicio!FK_CitaServ_Servicio ( Nombre ),
+        Trabajador:Trabajador_Servicio!FK_CitaServ_Trabajador_Servicio (
+          Usuario:Usuario!FK_TrabajadorServicio_Usuario ( Nombre, Apellido, Color_agenda )
+        )
       )
     `)
-    .eq("fecha", fechaHoy)
-    .neq("estado", "CANCELADA")
-    .neq("estado", "COMPLETADA")
+    .eq("fecha_cita", fechaHoy)
+    .eq("Estado", true)
     .order("hora_inicio", { ascending: true })
     .limit(8);
 
   if (error) throw new Error(error.message);
 
   return (data ?? []).map((row: Record<string, unknown>) => {
-    const cliente = row.cliente as { nombre: string; apellido: string | null } | null;
-    const trabajador = row.trabajador as {
-      nombre: string; apellido: string; color_agenda: string;
+    const cliente = row.Cliente as {
+      Nombre: string;
+      Apellido: string | null;
     } | null;
-    const servicios = (row.servicios as Array<{ servicio: { nombre: string } | null }>) ?? [];
+    const servicios = (row.servicios as Array<{
+      Servicio: { Nombre: string } | null;
+      Trabajador: {
+        Usuario: {
+          Nombre: string;
+          Apellido: string;
+          Color_agenda: string | null;
+        } | null;
+      } | null;
+    }>) ?? [];
+    const trabajador = servicios[0]?.Trabajador?.Usuario ?? null;
 
     const serviciosResumen = servicios
-      .map((s) => s.servicio?.nombre ?? "")
+      .map((servicio) => servicio.Servicio?.Nombre ?? "")
       .filter(Boolean)
       .join(", ") || "Sin servicios";
 
     return {
-      id: row.id as string,
+      id: String(row.ID),
       hora_inicio: row.hora_inicio as string,
-      cliente_nombre: cliente?.nombre ?? "Cliente",
-      cliente_apellido: cliente?.apellido ?? null,
-      trabajador_nombre: trabajador?.nombre ?? null,
-      trabajador_apellido: trabajador?.apellido ?? null,
-      trabajador_color: trabajador?.color_agenda ?? null,
+      cliente_nombre: cliente?.Nombre ?? "Cliente",
+      cliente_apellido: cliente?.Apellido ?? null,
+      trabajador_nombre: trabajador?.Nombre ?? null,
+      trabajador_apellido: trabajador?.Apellido ?? null,
+      trabajador_color: trabajador?.Color_agenda ?? null,
       servicios_resumen: serviciosResumen,
-      estado: row.estado as string,
+      estado: row.Estado === true ? "PENDIENTE" : "CANCELADA",
     };
   });
 }
@@ -129,10 +144,10 @@ async function fetchVentasSemana(): Promise<VentaSemana[]> {
   const fechaHasta = hoy();
 
   const { data, error } = await supabase
-    .from("ventas")
-    .select("created_at, monto_total")
-    .gte("created_at", `${fechaDesde}T00:00:00`)
-    .lte("created_at", `${fechaHasta}T23:59:59`);
+    .from("Venta")
+    .select("Fecha_Venta, Total")
+    .gte("Fecha_Venta", `${fechaDesde}T00:00:00`)
+    .lte("Fecha_Venta", `${fechaHasta}T23:59:59`);
 
   if (error) throw new Error(error.message);
 
@@ -142,10 +157,10 @@ async function fetchVentasSemana(): Promise<VentaSemana[]> {
     mapaVentas[restarDias(i)] = 0;
   }
 
-  (data ?? []).forEach((v: { created_at: string; monto_total: number }) => {
-    const fecha = v.created_at.slice(0, 10);
+  (data ?? []).forEach((venta: { Fecha_Venta: string; Total: number }) => {
+    const fecha = venta.Fecha_Venta.slice(0, 10);
     if (mapaVentas[fecha] !== undefined) {
-      mapaVentas[fecha] += v.monto_total;
+      mapaVentas[fecha] += Number(venta.Total ?? 0);
     }
   });
 

@@ -12,9 +12,9 @@ export default function PublicOnlyRoute({
 }: {
   children: React.ReactNode;
 }) {
-  const { session, cargando } = useAuth();
+  const { user, loading } = useAuth();
 
-  if (cargando) {
+  if (loading) {
     return (
       <div className="auth-loading">
         <div className="auth-loading-spinner" />
@@ -24,7 +24,7 @@ export default function PublicOnlyRoute({
   }
 
   // Si ya está autenticado, enviar al dashboard
-  if (session) {
+  if (user) {
     return <Navigate to="/dashboard" replace />;
   }
 

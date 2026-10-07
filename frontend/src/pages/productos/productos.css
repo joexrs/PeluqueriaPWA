@@ -33,17 +33,18 @@
 }
 
 .btn-primary {
-  background: var(--color-primary);
-  color: #fff;
+  background: var(--color-chrome);
+  color: var(--color-chrome-ink);
 }
 
 .btn-primary:hover {
-  background: var(--color-primary-dark);
+  background: var(--color-chrome);
+  opacity: 0.9;
 }
 
 .btn-ghost {
   background: transparent;
-  color: var(--color-primary);
+  color: var(--color-ink);
   border: 1px solid var(--color-border);
 }
 
@@ -81,7 +82,7 @@
 }
 
 .fila-clickable:hover {
-  background: rgba(122, 46, 69, 0.05);
+  background: var(--color-surface-2);
   cursor: pointer;
 }
 
@@ -169,6 +170,58 @@
   flex-direction: column;
   gap: 14px;
   max-width: 420px;
+}
+
+.inventario-producto-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 760px;
+  padding: 24px;
+  align-self: start;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+}
+
+.inventario-producto-form h2,
+.inventario-producto-form > .banner-error,
+.inventario-producto-form > .form-actions {
+  grid-column: 1 / -1;
+}
+
+.inventario-producto-form h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.inventario-producto-form label,
+.mov-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.inventario-producto-form input,
+.inventario-producto-form select,
+.inventario-producto-form textarea,
+.mov-form input,
+.mov-form select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.inventario-producto-form textarea {
+  resize: vertical;
 }
 
 .mov-form h2 {
@@ -330,5 +383,16 @@
 @media (max-width: 640px) {
   .detalle-grid {
     grid-template-columns: 1fr;
+  }
+
+  .inventario-producto-form {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  .inventario-producto-form h2,
+  .inventario-producto-form > .banner-error,
+  .inventario-producto-form > .form-actions {
+    grid-column: auto;
   }
 }

@@ -3,11 +3,9 @@ import {
   crearProducto,
   obtenerCategoriasProductos,
   obtenerProductos,
-  obtenerProveedores,
   registrarEntrada,
   registrarSalida,
   type CategoriaProductoRow,
-  type ProveedorRow,
 } from "./productosService";
 import type { CrearProductoPayload, ProductoConLotes, RegistrarEntradaPayload, RegistrarSalidaPayload } from "./types";
 import ProductoForm from "./ProductoForm";
@@ -19,7 +17,6 @@ type Vista = "lista" | "detalle" | "crear" | "movimiento";
 export default function ProductosPage() {
   const [productos, setProductos] = useState<ProductoConLotes[]>([]);
   const [categorias, setCategorias] = useState<CategoriaProductoRow[]>([]);
-  const [proveedores, setProveedores] = useState<ProveedorRow[]>([]);
   const [vista, setVista] = useState<Vista>("lista");
   const [productoSeleccionadoId, setProductoSeleccionadoId] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
@@ -32,16 +29,14 @@ export default function ProductosPage() {
     async function cargarDatos() {
       try {
         setLoading(true);
-        const [productosData, categoriasData, proveedoresData] = await Promise.all([
+        const [productosData, categoriasData] = await Promise.all([
           obtenerProductos(),
           obtenerCategoriasProductos(),
-          obtenerProveedores(),
         ]);
 
         if (!cancelled) {
           setProductos(productosData);
           setCategorias(categoriasData);
-          setProveedores(proveedoresData);
           setError(null);
         }
       } catch (err) {
@@ -87,10 +82,18 @@ export default function ProductosPage() {
   }
 
   async function handleMovimientoSubmit(data: RegistrarEntradaPayload | RegistrarSalidaPayload) {
-    if ("numero_lote" in data) {
-      await registrarEntrada(data, undefined);
+    if ("fecha_caducidad" in data) {
+      await registrarEntrada({
+        producto_id: data.producto_id,
+        cantidad: data.cantidad,
+        fecha_caducidad: data.fecha_caducidad,
+      });
     } else {
-      await registrarSalida(data);
+      await registrarSalida({
+        producto_id: data.producto_id,
+        cantidad: data.cantidad,
+        lote_id: data.lote_id,
+      });
     }
 
     await recargarProductos();
@@ -149,29 +152,27 @@ export default function ProductosPage() {
                 <th>Marca</th>
                 <th>Categoría</th>
                 <th>Stock</th>
-                <th>Stock mínimo</th>
                 <th>Estado</th>
               </tr>
             </thead>
             <tbody>
               {productosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="sin-resultados">
+                  <td colSpan={5} className="sin-resultados">
                     Ningún producto coincide con "{busqueda}".
                   </td>
                 </tr>
               ) : (
                 productosFiltrados.map((producto) => {
-                  const bajo = producto.stock_total <= producto.stock_minimo;
+                  const sinExistencias = producto.stock_total <= 0;
                   return (
                     <tr key={producto.id} className="fila-clickable" onClick={() => abrirDetalle(producto.id)}>
                       <td data-label="Producto">{producto.nombre}</td>
                       <td data-label="Marca">{producto.marca}</td>
                       <td data-label="Categoría">{producto.categoria?.nombre ?? "Sin categoría"}</td>
                       <td data-label="Stock">{producto.stock_total}</td>
-                      <td data-label="Stock mínimo">{producto.stock_minimo}</td>
                       <td data-label="Estado">
-                        <span className={`tag ${bajo ? "tag-bajo" : "tag-ok"}`}>{bajo ? "Stock bajo" : "OK"}</span>
+                        <span className={`tag ${sinExistencias ? "tag-bajo" : "tag-ok"}`}>{sinExistencias ? "Sin existencias" : "Disponible"}</span>
                       </td>
                     </tr>
                   );
@@ -207,10 +208,6 @@ export default function ProductosPage() {
               <span>{productoDetalle.stock_total}</span>
             </div>
             <div className="info-row">
-              <span>Stock mínimo</span>
-              <span>{productoDetalle.stock_minimo}</span>
-            </div>
-            <div className="info-row">
               <span>Precio público</span>
               <span>${productoDetalle.precio_venta_publico}</span>
             </div>
@@ -228,23 +225,23 @@ export default function ProductosPage() {
 
           <div className="detalle-card">
             <h3>Lotes</h3>
-            {productoDetalle.lotes.length === 0 ? (
+            {productoDetalle.lotes?.length === 0 ? (
               <p className="sub">No hay lotes registrados.</p>
             ) : (
               <table className="tabla-productos">
                 <thead>
                   <tr>
-                    <th>Lote</th>
+                    <th>Ingreso</th>
                     <th>Stock</th>
                     <th>Caducidad</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {productoDetalle.lotes.map((lote) => (
+                  {productoDetalle.lotes?.map((lote) => (
                     <tr key={lote.id}>
-                      <td>{lote.numero_lote}</td>
-                      <td>{lote.stock_actual}</td>
-                      <td>{lote.fecha_caducidad ?? "—"}</td>
+                      <td>{lote.Fecha_ingreso || "—"}</td>
+                      <td>{lote.Cantidad}</td>
+                      <td>{lote.Fecha_vencimiento || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -264,7 +261,6 @@ export default function ProductosPage() {
         </span>
         <ProductoForm
           categorias={categorias}
-          proveedores={proveedores}
           onSubmit={handleCrearProducto}
           onCancel={() => setVista("lista")}
         />
@@ -280,6 +276,7 @@ export default function ProductosPage() {
         </span>
         <MovimientoForm
           productos={productos}
+          productoInicialId={productoSeleccionadoId}
           onSubmit={handleMovimientoSubmit}
           onCancel={() => setVista(productoSeleccionadoId ? "detalle" : "lista")}
         />

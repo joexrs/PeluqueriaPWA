@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { obtenerTrabajadores, type TrabajadorRow } from "./trabajadoresService";
+import { obtenerServicios, type ServicioRow } from "../servicios/serviciosService";
+import { guardarServiciosTrabajador, obtenerServiciosTrabajador } from "../usuarios/usuariosService";
+import "./trabajadores.css";
 
 export default function TrabajadoresPage() {
   const [trabajadores, setTrabajadores] = useState<TrabajadorRow[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [servicios, setServicios] = useState<ServicioRow[]>([]);
+  const [editando, setEditando] = useState<TrabajadorRow | null>(null);
+  const [serviciosSeleccionados, setServiciosSeleccionados] = useState<string[]>([]);
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -13,9 +20,10 @@ export default function TrabajadoresPage() {
     async function cargar() {
       try {
         setLoading(true);
-        const data = await obtenerTrabajadores();
+        const [data, serviciosData] = await Promise.all([obtenerTrabajadores(), obtenerServicios()]);
         if (!cancelado) {
           setTrabajadores(data);
+          setServicios(serviciosData);
           setError(null);
         }
       } catch (err) {
@@ -32,6 +40,32 @@ export default function TrabajadoresPage() {
       cancelado = true;
     };
   }, []);
+
+  async function editarServicios(trabajador: TrabajadorRow) {
+    setEditando(trabajador);
+    setServiciosSeleccionados([]);
+    setError(null);
+    try {
+      setServiciosSeleccionados(await obtenerServiciosTrabajador(trabajador.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron cargar los servicios del trabajador.");
+      setEditando(null);
+    }
+  }
+
+  async function guardarServicios() {
+    if (!editando) return;
+    try {
+      setGuardando(true);
+      await guardarServiciosTrabajador(editando.id, serviciosSeleccionados);
+      setTrabajadores(await obtenerTrabajadores());
+      setEditando(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron guardar los servicios.");
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   const trabajadoresFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -71,12 +105,13 @@ export default function TrabajadoresPage() {
                 <th>Servicios</th>
                 <th>Comisión</th>
                 <th>Estado</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {trabajadoresFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="sin-resultados">
+                  <td colSpan={6} className="sin-resultados">
                     Ningún trabajador coincide con "{busqueda}".
                   </td>
                 </tr>
@@ -98,11 +133,47 @@ export default function TrabajadoresPage() {
                         {trabajador.activo ? "Activo" : "Inactivo"}
                       </span>
                     </td>
+                    <td data-label="Acciones">
+                      <button type="button" className="btn btn-ghost small" onClick={() => void editarServicios(trabajador)}>
+                        Editar servicios
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+        </div>
+      )}
+      {editando && (
+        <div className="trabajador-modal-overlay" onClick={() => !guardando && setEditando(null)}>
+          <section className="usuario-form trabajador-servicios-modal" role="dialog" aria-modal="true" aria-labelledby="trabajador-servicios-titulo" onClick={(event) => event.stopPropagation()}>
+            <h2 id="trabajador-servicios-titulo">Servicios de {editando.nombre} {editando.apellido}</h2>
+            <fieldset className="usuario-servicios">
+              <legend>Servicios que puede realizar</legend>
+              {servicios.length === 0 ? <small>No hay servicios activos disponibles.</small> : servicios.map((servicio) => {
+                const id = String(servicio.id ?? servicio.ID);
+                return (
+                  <label key={id}>
+                    <input
+                      type="checkbox"
+                      checked={serviciosSeleccionados.includes(id)}
+                      onChange={(event) => setServiciosSeleccionados((actuales) => event.target.checked
+                        ? [...actuales, id]
+                        : actuales.filter((actual) => actual !== id))}
+                    />
+                    {servicio.nombre}
+                  </label>
+                );
+              })}
+            </fieldset>
+            <div className="form-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setEditando(null)} disabled={guardando}>Cancelar</button>
+              <button type="button" className="btn btn-primary" onClick={() => void guardarServicios()} disabled={guardando}>
+                {guardando ? "Guardando..." : "Guardar servicios"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </div>

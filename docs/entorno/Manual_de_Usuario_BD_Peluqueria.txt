@@ -1,0 +1,1108 @@
+==============================================================================
+  MANUAL DE USUARIO - BASE DE DATOS DEL SISTEMA DE PELUQUERÍA
+  Víctor Manuel Peluqueros
+  Plataforma: Supabase (PostgreSQL)
+  Archivo del script: peluqueria_BD_supabase.sql
+==============================================================================
+
+
+ÍNDICE
+------------------------------------------------------------------------------
+  1.  Introducción
+  2.  Requisitos previos
+  3.  Instalación paso a paso en Supabase
+  4.  Seguridad y claves de acceso
+  5.  Estructura de la base de datos (las 15 tablas)
+  6.  Mapa de relaciones
+  7.  Reglas automáticas (triggers)
+  8.  Funciones disponibles
+  9.  Guía de uso: operaciones del día a día
+        9.1  Usuarios y roles
+        9.2  Catálogo de servicios
+        9.3  Clientes
+        9.4  Citas
+        9.5  Ventas y pagos
+        9.6  Inventario (productos, lotes y movimientos)
+        9.7  Promociones
+ 10.  Consultas útiles (reportes)
+ 11.  Uso desde el backend o el bot de WhatsApp
+ 12.  Mensajes de error y cómo resolverlos
+ 13.  Buenas prácticas y mantenimiento
+ 14.  Limitaciones conocidas y mejoras pendientes
+ 15.  Preguntas frecuentes
+ 16.  Glosario
+
+
+==============================================================================
+1. INTRODUCCIÓN
+==============================================================================
+
+Este manual explica cómo instalar, entender y usar la base de datos del
+sistema integral de la peluquería Víctor Manuel Peluqueros. La base de datos
+está pensada para un único local y cubre:
+
+  - Personal del salón (administrador, jefe, recepcionista, trabajadores)
+  - Clientes
+  - Catálogo de servicios y qué trabajador puede realizar cada uno
+  - Agenda de citas
+  - Ventas y pagos (servicios y productos)
+  - Inventario de productos con control por lotes y fecha de vencimiento
+  - Promociones
+
+La base de datos incluye reglas automáticas (triggers) que protegen la
+información: por ejemplo, impiden agendar fuera del horario de atención,
+evitan que un trabajador tenga dos citas al mismo tiempo, cifran las
+contraseñas y calculan solos el total y el estado de cada venta.
+
+IMPORTANTE: este manual describe la BASE DE DATOS. Las pantallas, botones y
+mensajes que vea el personal dependen de la aplicación que se construya
+encima (panel web, bot de WhatsApp, etc.). Los ejemplos de este manual están
+escritos en SQL para que puedan ejecutarse directamente en Supabase y
+sirvan de referencia para el desarrollo de esa aplicación.
+
+
+==============================================================================
+2. REQUISITOS PREVIOS
+==============================================================================
+
+  - Una cuenta en Supabase (https://supabase.com) y un proyecto creado.
+  - Acceso al panel del proyecto con permisos de administrador.
+  - El archivo peluqueria_BD_supabase.sql.
+  - Un navegador web actualizado.
+
+No necesita instalar nada en su computadora para crear la base de datos.
+
+
+==============================================================================
+3. INSTALACIÓN PASO A PASO EN SUPABASE
+==============================================================================
+
+PASO 1. Abrir el editor SQL
+  - Entre a su proyecto en Supabase.
+  - En el menú lateral izquierdo, haga clic en "SQL Editor".
+  - Haga clic en "New query" (nueva consulta).
+
+PASO 2. Pegar el script
+  - Abra el archivo peluqueria_BD_supabase.sql con un editor de texto.
+  - Copie TODO su contenido (Ctrl+A, Ctrl+C).
+  - Péguelo en el editor SQL de Supabase (Ctrl+V).
+
+PASO 3. Ejecutar
+  - Haga clic en el botón "Run" (o presione Ctrl+Enter).
+  - Espere a que termine. Debe aparecer el mensaje "Success. No rows
+    returned". Pueden verse avisos (NOTICE) del tipo "trigger ... does not
+    exist, skipping": son normales en la primera ejecución.
+
+PASO 4. Verificar la instalación
+  - Vaya a "Table Editor" en el menú lateral. Debe ver las 15 tablas:
+    Rol, Usuario, Cliente, Categoria, Producto, Lote, Movimientos,
+    Categoria_Servicio, Servicio, Trabajador_Servicio, Cita, Cita_Servicio,
+    Venta, Venta_Detalle y Promocion.
+  - Abra la tabla "Rol": debe contener 4 filas (admin, jefe, recepcionista,
+    trabajador).
+  - Opcional: en el SQL Editor ejecute
+        SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal;
+    para comprobar que los triggers existen.
+
+NOTAS IMPORTANTES SOBRE LA INSTALACIÓN
+  a) El script está pensado para una base de datos LIMPIA. Si las tablas ya
+     existen, "CREATE TABLE IF NOT EXISTS" no las modifica; los cambios
+     nuevos (restricciones, columnas) no se aplicarían.
+  b) Si necesita empezar de cero, al inicio del script hay un bloque
+     comentado llamado "RESET". Quite los "--" de ese bloque SOLO si quiere
+     BORRAR TODOS LOS DATOS y recrear las tablas. Esta acción no se puede
+     deshacer.
+  c) El script se puede ejecutar más de una vez sin errores (los triggers y
+     funciones se recrean). Aun así, haga siempre una copia de seguridad
+     antes de ejecutarlo sobre una base con datos reales.
+  d) Si no existe una extensión llamada pgcrypto, el script la activa solo.
+     En Supabase se instala en el esquema "extensions".
+
+
+==============================================================================
+4. SEGURIDAD Y CLAVES DE ACCESO
+==============================================================================
+
+4.1 Las dos claves de Supabase
+  Su proyecto tiene dos claves de API (Project Settings > API):
+
+  - anon key (clave pública): puede ir en aplicaciones web o móviles. Está
+    limitada por las reglas de seguridad (RLS).
+  - service_role key (clave de servicio): TIENE ACCESO TOTAL a la base de
+    datos y se salta todas las reglas de seguridad. Solo debe usarse en el
+    servidor (backend, bot de WhatsApp). NUNCA la ponga en una página web,
+    app móvil ni repositorio público.
+
+4.2 Seguridad a nivel de fila (RLS)
+  El script activa RLS (Row Level Security) en las 15 tablas y no crea
+  políticas de acceso. Esto significa:
+
+  - Con la anon key o con un usuario "authenticated" NO se puede leer ni
+    escribir ninguna tabla (se obtienen resultados vacíos o errores de
+    permiso).
+  - Solo el backend con la service_role key puede operar.
+  - Si más adelante desea que una aplicación acceda directamente con la anon
+    key, deberá crear políticas (CREATE POLICY). Al final del script hay un
+    ejemplo comentado.
+
+4.3 Contraseñas
+  - Las contraseñas se guardan cifradas (bcrypt). Nunca se almacenan en texto
+    plano ni pueden recuperarse: solo se pueden verificar o reemplazar.
+  - Se cifran automáticamente al insertar o cambiar la contraseña. Usted
+    escribe la contraseña normal y la base de datos la cifra sola.
+  - La verificación de acceso se hace con la función verificar_credenciales
+    (ver sección 8).
+
+4.4 Los roles son etiquetas
+  La tabla Rol (admin, jefe, recepcionista, trabajador) identifica el tipo de
+  usuario, pero la base de datos NO restringe qué puede hacer cada rol. Esa
+  restricción debe aplicarla la aplicación o, más adelante, las políticas RLS.
+
+
+==============================================================================
+5. ESTRUCTURA DE LA BASE DE DATOS (LAS 15 TABLAS)
+==============================================================================
+
+Convenciones generales
+  - Los nombres de tablas y columnas llevan MAYÚSCULA inicial y se escriben
+    entre comillas dobles en SQL: "Cliente", "Nombre". Sin comillas, SQL no
+    los encuentra.
+  - Algunas columnas están en minúscula (por ejemplo cliente_id, fecha_cita,
+    hora_inicio en la tabla Cita). Respete exactamente cada nombre.
+  - "Estado" (verdadero/falso) indica si el registro está activo. En lugar
+    de borrar registros se recomienda poner Estado = FALSE (borrado lógico).
+  - Created_at y Updated_at se llenan solos. Updated_at se actualiza
+    automáticamente en cada modificación.
+  - Las fechas con hora usan zona horaria (TIMESTAMPTZ).
+
+------------------------------------------------------------------------------
+5.1 Rol
+------------------------------------------------------------------------------
+Tipos de usuario del sistema.
+  ID (automático) | Nombre (único) | Estado | Created_at | Updated_at
+Valores iniciales: admin, jefe, recepcionista, trabajador.
+
+------------------------------------------------------------------------------
+5.2 Usuario
+------------------------------------------------------------------------------
+Personal que usa el sistema o atiende clientes.
+  ID                   Automático.
+  DNI                  Único (opcional).
+  Nombre, Apellido     Obligatorios.
+  E_mail               Obligatorio y único.
+  Telefono             Opcional.
+  Usuario              Nombre de usuario para iniciar sesión. Obligatorio
+                       y único.
+  Contraseña           Obligatoria. Se guarda cifrada.
+  Color_agenda         Color de la agenda, formato #RRGGBB (ej. #FF5733).
+  Comision_porcentaje  Porcentaje de comisión, de 0 a 100.
+  Rol_id               Rol del usuario (tabla Rol).
+  Estado               Activo / inactivo.
+
+Reglas según el rol:
+  - Si el rol es "trabajador": Color_agenda y Comision_porcentaje son
+    OBLIGATORIOS.
+  - Para cualquier otro rol: si no se indican, se asignan automáticamente
+    Color_agenda = #000000 y Comision_porcentaje = 0.
+
+------------------------------------------------------------------------------
+5.3 Cliente
+------------------------------------------------------------------------------
+  ID, Nombre y Apellido (obligatorios), Telefono, E_mail, DNI (único),
+  Fecha_Nacimiento, Total_visitas (por defecto 0, no puede ser negativo),
+  Preferencias (datos libres en formato JSON, ej. {"alergias":"amoniaco"}),
+  Estado.
+
+------------------------------------------------------------------------------
+5.3b Categoria y Producto (inventario)
+------------------------------------------------------------------------------
+Categoria: ID, Nombre (único), Estado. Agrupa los productos (ej. Shampoo,
+Tintes).
+
+Producto:
+  ID, Nombre (obligatorio), Descripcion, Marca, Codigo (único, opcional),
+  Precio (obligatorio, no negativo), Stock_total (no negativo),
+  Categoria_id, Estado.
+
+------------------------------------------------------------------------------
+5.4 Lote
+------------------------------------------------------------------------------
+Cada ingreso de un producto, con su fecha de vencimiento.
+  ID, Fecha_vencimiento (obligatoria), Fecha_ingreso (por defecto hoy),
+  Cantidad (no negativa), Producto_id, Estado.
+Regla: la fecha de vencimiento no puede ser anterior a la fecha de ingreso.
+
+------------------------------------------------------------------------------
+5.5 Movimientos
+------------------------------------------------------------------------------
+Entradas y salidas de inventario.
+  ID, Cantidad (mayor que 0), Tipo ('Entrada' o 'Salida'), Fecha_movimiento
+  (por defecto ahora), Lote_id, Producto_id, Estado.
+Regla: el lote debe pertenecer al producto indicado; no se puede registrar
+un movimiento con el lote de otro producto.
+
+------------------------------------------------------------------------------
+5.6 Categoria_Servicio
+------------------------------------------------------------------------------
+Agrupa los servicios (ej. Corte, Color, Tratamientos).
+  ID, Nombre (único), Descripcion, Estado.
+
+------------------------------------------------------------------------------
+5.7 Servicio
+------------------------------------------------------------------------------
+  ID, Nombre (único), Descripcion, Precio (no negativo),
+  Duracion_minutos (mayor que 0, por defecto 30), Categoria_id, Estado.
+
+------------------------------------------------------------------------------
+5.8 Trabajador_Servicio
+------------------------------------------------------------------------------
+Indica QUÉ servicios puede realizar cada trabajador.
+  ID, usuario_id, Servicio_id, Estado.
+Un mismo trabajador no puede repetirse para el mismo servicio.
+Un trabajador solo podrá asignarse a una cita para un servicio que tenga
+registrado aquí.
+
+------------------------------------------------------------------------------
+5.9 Cita
+------------------------------------------------------------------------------
+Cabecera de la reserva: quién, qué día y de qué hora a qué hora.
+  ID, cliente_id (obligatorio, debe existir en Cliente), fecha_cita,
+  hora_inicio, hora_fin, Estado.
+Reglas:
+  - hora_fin debe ser mayor que hora_inicio.
+  - Debe respetar el horario de atención (ver sección 7.3).
+  - Estado = TRUE significa cita activa; Estado = FALSE significa cita
+    anulada/cancelada (libera el horario del trabajador).
+
+------------------------------------------------------------------------------
+5.10 Cita_Servicio
+------------------------------------------------------------------------------
+Detalle de la cita: qué servicios se realizan y con qué trabajador.
+  ID, cita_id, servicio_id, trabajador_id, orden (1, 2, 3...), Cantidad.
+Reglas:
+  - El trabajador debe estar habilitado para ese servicio (tabla
+    Trabajador_Servicio).
+  - Si se elimina la cita, se eliminan sus detalles.
+
+------------------------------------------------------------------------------
+5.11 Venta
+------------------------------------------------------------------------------
+Cabecera del cobro.
+  ID, Cliente_ID, Usuario_ID (quién registró la venta), Fecha_Venta (por
+  defecto ahora), Total, Cita_ID (opcional, si proviene de una cita),
+  Metodo_Pago (texto libre: Efectivo, Yape, Plin, Tarjeta, etc.),
+  Estado_Venta ('Pendiente', 'Pagado' o 'Cancelado').
+IMPORTANTE: Total y Estado_Venta los calcula el sistema a partir de las
+líneas de Venta_Detalle. No hace falta (ni conviene) escribirlos a mano.
+
+------------------------------------------------------------------------------
+5.12 Venta_Detalle
+------------------------------------------------------------------------------
+Cada línea de la venta: un servicio O un producto (nunca ambos ni ninguno).
+  ID, Venta_ID, Servicio_ID, Producto_ID, Cantidad (mayor que 0),
+  Precio_Unitario, Subtotal (calculado: Cantidad x Precio_Unitario; no se
+  puede escribir), Estado_Detalle ('Pendiente', 'Pagado' o 'Cancelado').
+Regla: cada línea debe tener Servicio_ID o Producto_ID, pero no los dos.
+
+------------------------------------------------------------------------------
+5.13 Promocion
+------------------------------------------------------------------------------
+  ID, Nombre, Descripcion, Porcentaje_Descuento (de 0 a 100), Fecha_Inicio,
+  Fecha_Fin (no puede ser anterior al inicio), Servicio_ID (opcional),
+  Estado.
+Nota: las promociones se registran como información. El descuento NO se
+aplica automáticamente al precio de las ventas (ver sección 14).
+
+
+==============================================================================
+6. MAPA DE RELACIONES
+==============================================================================
+
+  Rol 1 ---- N Usuario
+  Usuario 1 ---- N Trabajador_Servicio N ---- 1 Servicio
+  Categoria_Servicio 1 ---- N Servicio
+  Servicio 1 ---- N Promocion
+
+  Cliente 1 ---- N Cita 1 ---- N Cita_Servicio
+  Cita_Servicio N ---- 1 Servicio
+  Cita_Servicio N ---- 1 Trabajador_Servicio (trabajador + servicio)
+
+  Cliente 1 ---- N Venta 1 ---- N Venta_Detalle
+  Usuario 1 ---- N Venta           (quien registra la venta)
+  Cita    1 ---- N Venta           (opcional)
+  Venta_Detalle N ---- 1 Servicio  (o)  Producto
+
+  Categoria 1 ---- N Producto 1 ---- N Lote 1 ---- N Movimientos
+
+Qué ocurre al borrar (resumen)
+  - Borrar un Cliente, Usuario con ventas, Servicio o Producto con
+    historial: el sistema lo RECHAZA para proteger los datos. Use
+    Estado = FALSE en su lugar.
+  - Borrar una Cita elimina automáticamente su detalle (Cita_Servicio).
+  - Borrar una Venta elimina automáticamente sus líneas (Venta_Detalle).
+  - Borrar una Cita enlazada a una Venta deja la venta con Cita_ID vacío.
+
+
+==============================================================================
+7. REGLAS AUTOMÁTICAS (TRIGGERS)
+==============================================================================
+
+Los triggers se ejecutan solos; usted no debe llamarlos.
+
+7.1 Cifrado de contraseña  (tabla Usuario)
+  - Al crear un usuario o cambiar su contraseña, esta se cifra
+    automáticamente.
+  - Si usted modifica otros datos del usuario (por ejemplo su Estado), la
+    contraseña NO se vuelve a cifrar ni se daña.
+
+7.2 Campos obligatorios por rol  (tabla Usuario)
+  - Rol trabajador: exige Color_agenda y Comision_porcentaje.
+  - Otros roles: rellena Color_agenda = #000000 y comisión = 0 si no se
+    indican.
+
+7.3 Horario de atención  (tabla Cita)
+  Una cita solo se acepta si cumple el horario del local:
+
+      Lunes a sábado:  desde las 10:30 hasta las 21:00
+      Domingo:         desde las 11:00 hasta las 18:00
+
+  - hora_inicio no puede ser anterior a la apertura.
+  - hora_fin no puede ser posterior al cierre.
+  - Se permiten horas exactas de apertura y de cierre (por ejemplo, una cita
+    de 10:30 a 11:30, o de 20:00 a 21:00).
+
+7.4 Estado y total de la venta  (tabla Venta_Detalle -> Venta)
+  Cada vez que se agrega, modifica o elimina una línea de venta, el sistema
+  recalcula la venta:
+
+  Total = suma de los Subtotal de las líneas NO canceladas.
+
+  Estado_Venta:
+    - Sin líneas                                  -> Pendiente
+    - Todas las líneas canceladas                 -> Cancelado
+    - Todas las líneas no canceladas están pagadas -> Pagado
+    - Cualquier otro caso                         -> Pendiente
+
+  Ejemplo: una venta con 3 líneas, una cancelada y dos pagadas queda
+  "Pagado" con el total de las dos líneas pagadas.
+
+7.5 Evitar doble reserva del trabajador  (tablas Cita y Cita_Servicio)
+  Un trabajador no puede tener dos citas activas que se crucen en el mismo
+  día. Se valida:
+    - al asignar un trabajador a una cita,
+    - al cambiar la fecha o las horas de una cita,
+    - al reactivar una cita (Estado = TRUE).
+  Dos citas que se tocan en el borde NO se cruzan: una de 11:00 a 12:00 y
+  otra de 12:00 a 13:00 son compatibles.
+  Las citas con Estado = FALSE (canceladas) no cuentan.
+
+7.6 Actualización de Updated_at
+  Cualquier modificación de un registro actualiza su fecha Updated_at.
+
+
+==============================================================================
+8. FUNCIONES DISPONIBLES
+==============================================================================
+
+Estas funciones solo pueden ser ejecutadas por el backend (service_role) y
+desde el SQL Editor del panel de Supabase.
+
+------------------------------------------------------------------------------
+8.1 verificar_credenciales(usuario, contraseña)
+------------------------------------------------------------------------------
+Sirve para el inicio de sesión. Comprueba usuario y contraseña (solo
+usuarios con Estado = TRUE).
+
+  Ejemplo:
+      SELECT * FROM verificar_credenciales('ana', 'ClaveSegura123');
+
+  Resultado correcto: una fila con id, nombre, apellido y rol.
+  Resultado incorrecto (usuario inexistente, inactivo o contraseña errónea):
+  ninguna fila. Por seguridad no se indica cuál de los datos falló.
+
+------------------------------------------------------------------------------
+8.2 registrar_cita_cliente(...)
+------------------------------------------------------------------------------
+Registra una cita completa en un solo paso: crea al cliente si es nuevo,
+crea la cita y registra sus servicios. Todo se hace en una única operación:
+si algo falla (horario inválido, trabajador ocupado, etc.), no se guarda
+nada, ni siquiera el cliente nuevo.
+
+  Parámetros (en este orden):
+    p_nombre       Nombre del cliente
+    p_apellido     Apellido del cliente
+    p_telefono     Teléfono del cliente
+    p_dni          DNI (o NULL si no se tiene)
+    p_fecha        Fecha de la cita (AAAA-MM-DD)
+    p_hora_inicio  Hora de inicio (HH:MM)
+    p_hora_fin     Hora de fin, o NULL para que se calcule sola sumando la
+                   duración de los servicios
+    p_servicios    Lista de servicios en formato JSON:
+                   [{"servicio_id":1,"trabajador_id":2,"orden":1,
+                     "cantidad":1}]
+                   "orden" y "cantidad" son opcionales (valen 1 por
+                   defecto).
+
+  Cómo se identifica al cliente:
+    - Si se envía DNI: se busca por DNI.
+    - Si no hay DNI: se busca por teléfono + nombre + apellido (sin
+      distinguir mayúsculas).
+    - Si no se encuentra, se crea un cliente nuevo.
+
+  Resultado: una fila con
+    out_cliente_id, out_cita_id, out_cliente_nuevo (true si se creó).
+
+  Ejemplo (cliente nuevo, corte de barba con el trabajador 1):
+      SELECT * FROM registrar_cita_cliente(
+          'Luis', 'Rojas', '777000111', NULL,
+          '2026-10-08', '15:00', NULL,
+          '[{"servicio_id":2,"trabajador_id":1}]'
+      );
+
+------------------------------------------------------------------------------
+8.3 validar_solape_cita(id_cita)  (uso interno)
+------------------------------------------------------------------------------
+La utilizan los triggers para revisar cruces de horario. No es necesario
+llamarla manualmente.
+
+
+==============================================================================
+9. GUÍA DE USO: OPERACIONES DEL DÍA A DÍA
+==============================================================================
+
+Todos los ejemplos pueden ejecutarse en el SQL Editor de Supabase.
+Reemplace los valores de ejemplo por los reales.
+
+------------------------------------------------------------------------------
+9.1 USUARIOS Y ROLES
+------------------------------------------------------------------------------
+
+Crear un trabajador (color y comisión obligatorios):
+    INSERT INTO "Usuario"
+      ("DNI","Nombre","Apellido","E_mail","Telefono","Usuario",
+       "Contraseña","Rol_id","Color_agenda","Comision_porcentaje")
+    VALUES
+      ('12345678','Ana','López','ana@correo.com','999111222','ana',
+       'ClaveSegura123',
+       (SELECT "ID" FROM "Rol" WHERE "Nombre" = 'trabajador'),
+       '#FF5733', 30);
+
+Crear un recepcionista o administrador (sin color ni comisión):
+    INSERT INTO "Usuario"
+      ("Nombre","Apellido","E_mail","Usuario","Contraseña","Rol_id")
+    VALUES
+      ('Víctor','Manuel','victor@correo.com','victor','OtraClave456',
+       (SELECT "ID" FROM "Rol" WHERE "Nombre" = 'admin'));
+
+Cambiar la contraseña de un usuario (escriba la nueva en texto normal; se
+cifra sola):
+    UPDATE "Usuario" SET "Contraseña" = 'NuevaClave789'
+    WHERE "Usuario" = 'ana';
+
+Desactivar a un usuario (no podrá iniciar sesión; se conserva su historial):
+    UPDATE "Usuario" SET "Estado" = FALSE WHERE "Usuario" = 'ana';
+
+Cambiar el rol de un usuario:
+    UPDATE "Usuario"
+       SET "Rol_id" = (SELECT "ID" FROM "Rol" WHERE "Nombre" = 'jefe')
+     WHERE "Usuario" = 'victor';
+  (Si lo cambia a "trabajador", asegúrese de que tenga color y comisión.)
+
+Verificar un inicio de sesión:
+    SELECT * FROM verificar_credenciales('ana', 'NuevaClave789');
+
+Errores frecuentes:
+  - "Color_agenda es OBLIGATORIO..." -> falta el color del trabajador.
+  - "duplicate key ... E_mail / Usuario / DNI" -> ya existe otro usuario con
+    ese correo, nombre de usuario o DNI.
+  - "CK_Usuario_Color" -> el color debe tener formato #RRGGBB (6 dígitos
+    hexadecimales, por ejemplo #1A2B3C).
+
+------------------------------------------------------------------------------
+9.2 CATÁLOGO DE SERVICIOS
+------------------------------------------------------------------------------
+
+Paso 1. Crear categorías de servicio:
+    INSERT INTO "Categoria_Servicio" ("Nombre","Descripcion")
+    VALUES ('Corte','Cortes de cabello y barba'),
+           ('Color','Tintes y mechas');
+
+Paso 2. Crear servicios (precio en soles y duración en minutos):
+    INSERT INTO "Servicio"
+      ("Nombre","Descripcion","Precio","Duracion_minutos","Categoria_id")
+    VALUES
+      ('Corte caballero','Corte clásico',25.00,30,
+        (SELECT "ID" FROM "Categoria_Servicio" WHERE "Nombre"='Corte')),
+      ('Barba','Perfilado de barba',15.00,20,
+        (SELECT "ID" FROM "Categoria_Servicio" WHERE "Nombre"='Corte'));
+
+Paso 3. Indicar qué servicios realiza cada trabajador:
+    INSERT INTO "Trabajador_Servicio" ("usuario_id","Servicio_id")
+    VALUES (
+      (SELECT "ID" FROM "Usuario"  WHERE "Usuario" = 'ana'),
+      (SELECT "ID" FROM "Servicio" WHERE "Nombre"  = 'Corte caballero'));
+
+Cambiar el precio de un servicio:
+    UPDATE "Servicio" SET "Precio" = 28.00
+    WHERE "Nombre" = 'Corte caballero';
+  (Las ventas ya registradas conservan el precio con el que se vendieron.)
+
+Retirar un servicio del catálogo (NO lo borre; desactívelo):
+    UPDATE "Servicio" SET "Estado" = FALSE WHERE "Nombre" = 'Barba';
+  Si intenta borrarlo con DELETE y ya tiene ventas o citas, el sistema lo
+  rechazará para proteger el historial.
+
+------------------------------------------------------------------------------
+9.3 CLIENTES
+------------------------------------------------------------------------------
+
+Registrar un cliente:
+    INSERT INTO "Cliente"
+      ("Nombre","Apellido","Telefono","E_mail","DNI","Fecha_Nacimiento",
+       "Preferencias")
+    VALUES
+      ('Juan','Pérez','999888777','juan@correo.com','87654321',
+       '1990-05-14', '{"alergias":"ninguna","estilo":"degradado"}');
+
+Buscar un cliente por teléfono:
+    SELECT * FROM "Cliente" WHERE "Telefono" = '999888777';
+
+Buscar por nombre (sin distinguir mayúsculas):
+    SELECT * FROM "Cliente" WHERE "Nombre" ILIKE '%juan%';
+
+Actualizar datos:
+    UPDATE "Cliente" SET "Telefono" = '999000111' WHERE "ID" = 1;
+
+Desactivar un cliente:
+    UPDATE "Cliente" SET "Estado" = FALSE WHERE "ID" = 1;
+
+Nota: el DNI no puede repetirse entre clientes. El teléfono y el correo sí
+pueden repetirse (por ejemplo, familiares que comparten teléfono).
+
+------------------------------------------------------------------------------
+9.4 CITAS
+------------------------------------------------------------------------------
+
+REGLA DE ORO: el cliente debe existir ANTES de registrar la cita. El orden
+siempre es: 1) cliente, 2) cita, 3) detalle de la cita.
+
+OPCIÓN A (recomendada): registrar todo en un solo paso con la función
+registrar_cita_cliente. Sirve para clientes nuevos y existentes.
+
+  Flujo para un cliente nuevo, tal como lo haría una recepcionista o el bot:
+    1. Preguntar nombre, apellido, teléfono y (si lo tiene) DNI.
+    2. Preguntar el servicio, la fecha y la hora deseadas.
+    3. Elegir el trabajador disponible para ese servicio.
+    4. Ejecutar la función:
+
+         SELECT * FROM registrar_cita_cliente(
+             'Luis','Rojas','777000111',NULL,
+             '2026-10-08','15:00',NULL,
+             '[{"servicio_id":1,"trabajador_id":1},
+               {"servicio_id":2,"trabajador_id":1,"orden":2}]'
+         );
+
+  Si el cliente ya existía, la función lo reutiliza (out_cliente_nuevo =
+  false); no se duplica.
+
+OPCIÓN B: registrar manualmente en tres pasos.
+
+  Paso 1. Registrar al cliente (si es nuevo):
+      INSERT INTO "Cliente" ("Nombre","Apellido","Telefono")
+      VALUES ('Luis','Rojas','777000111') RETURNING "ID";
+
+  Paso 2. Registrar la cita con el ID del cliente:
+      INSERT INTO "Cita" (cliente_id, fecha_cita, hora_inicio, hora_fin)
+      VALUES (1, '2026-10-08', '15:00', '15:50') RETURNING "ID";
+
+  Paso 3. Registrar los servicios de la cita:
+      INSERT INTO "Cita_Servicio"
+        (cita_id, servicio_id, trabajador_id, orden)
+      VALUES (1, 1, 1, 1),
+             (1, 2, 1, 2);
+
+Cambiar el horario de una cita:
+    UPDATE "Cita" SET hora_inicio = '16:00', hora_fin = '16:50'
+    WHERE "ID" = 1;
+  (Se vuelven a validar el horario de atención y los cruces del trabajador.)
+
+Cancelar una cita (libera el horario del trabajador):
+    UPDATE "Cita" SET "Estado" = FALSE WHERE "ID" = 1;
+
+Reactivar una cita cancelada:
+    UPDATE "Cita" SET "Estado" = TRUE WHERE "ID" = 1;
+  (Si el horario ya fue ocupado por otra cita, el sistema lo rechazará.)
+
+Ver si un trabajador está libre en una fecha (citas activas del día):
+    SELECT c.hora_inicio, c.hora_fin
+      FROM "Cita" c
+      JOIN "Cita_Servicio" cs ON cs.cita_id = c."ID"
+     WHERE cs.trabajador_id = 1
+       AND c.fecha_cita = '2026-10-08'
+       AND c."Estado" = TRUE
+     ORDER BY c.hora_inicio;
+
+------------------------------------------------------------------------------
+9.5 VENTAS Y PAGOS
+------------------------------------------------------------------------------
+
+Paso 1. Crear la venta (cabecera). Cita_ID es opcional:
+    INSERT INTO "Venta" ("Cliente_ID","Usuario_ID","Cita_ID","Metodo_Pago")
+    VALUES (1, 2, 1, 'Efectivo') RETURNING "ID";
+  (Usuario_ID = persona que registra el cobro.)
+
+Paso 2. Agregar las líneas.
+  Un servicio:
+    INSERT INTO "Venta_Detalle"
+      ("Venta_ID","Servicio_ID","Cantidad","Precio_Unitario")
+    VALUES (1, 1, 1, 25.00);
+
+  Un producto:
+    INSERT INTO "Venta_Detalle"
+      ("Venta_ID","Producto_ID","Cantidad","Precio_Unitario")
+    VALUES (1, 1, 2, 40.00);
+
+  Después de cada línea, la venta se actualiza sola: Total y Estado_Venta.
+  NO escriba Subtotal, Total ni Estado_Venta: son automáticos.
+
+Paso 3. Registrar el pago. Marque las líneas como pagadas:
+    UPDATE "Venta_Detalle" SET "Estado_Detalle" = 'Pagado'
+    WHERE "Venta_ID" = 1;
+  Cuando todas las líneas activas estén pagadas, la venta pasa sola a
+  "Pagado".
+
+Cancelar una sola línea (por ejemplo, el cliente no quiso el producto):
+    UPDATE "Venta_Detalle" SET "Estado_Detalle" = 'Cancelado'
+    WHERE "ID" = 2;
+  El Total se recalcula sin esa línea.
+
+Cancelar toda la venta: cancele todas sus líneas.
+    UPDATE "Venta_Detalle" SET "Estado_Detalle" = 'Cancelado'
+    WHERE "Venta_ID" = 1;
+  La venta queda "Cancelado" con Total 0.
+
+Corregir un precio o cantidad de una línea:
+    UPDATE "Venta_Detalle" SET "Cantidad" = 3 WHERE "ID" = 2;
+  El Subtotal y el Total se recalculan solos.
+
+Consultar una venta con su detalle:
+    SELECT v."ID", v."Estado_Venta", v."Total",
+           d."ID" AS linea,
+           COALESCE(s."Nombre", p."Nombre") AS concepto,
+           d."Cantidad", d."Precio_Unitario", d."Subtotal",
+           d."Estado_Detalle"
+      FROM "Venta" v
+      JOIN "Venta_Detalle" d ON d."Venta_ID" = v."ID"
+      LEFT JOIN "Servicio" s ON s."ID" = d."Servicio_ID"
+      LEFT JOIN "Producto" p ON p."ID" = d."Producto_ID"
+     WHERE v."ID" = 1;
+
+Errores frecuentes:
+  - "CK_Venta_Detalle_Tipo" -> la línea debe tener Servicio_ID O Producto_ID
+    (uno solo).
+  - "cannot insert a non-DEFAULT value into column Subtotal" -> Subtotal se
+    calcula solo; quite esa columna del INSERT.
+
+------------------------------------------------------------------------------
+9.6 INVENTARIO (PRODUCTOS, LOTES Y MOVIMIENTOS)
+------------------------------------------------------------------------------
+
+Crear categoría y producto:
+    INSERT INTO "Categoria" ("Nombre") VALUES ('Shampoo');
+
+    INSERT INTO "Producto"
+      ("Nombre","Descripcion","Marca","Codigo","Precio","Categoria_id")
+    VALUES
+      ('Shampoo reparador','Frasco 500 ml','MarcaX','SH-001',40.00,
+        (SELECT "ID" FROM "Categoria" WHERE "Nombre" = 'Shampoo'));
+
+Registrar el ingreso de un lote (con su fecha de vencimiento):
+    INSERT INTO "Lote" ("Fecha_vencimiento","Cantidad","Producto_id")
+    VALUES ('2027-12-31', 20, 1) RETURNING "ID";
+
+Registrar un movimiento de inventario:
+    -- Salida de 2 unidades del lote 1 (producto 1)
+    INSERT INTO "Movimientos" ("Cantidad","Tipo","Lote_id","Producto_id")
+    VALUES (2, 'Salida', 1, 1);
+
+    -- Entrada de 10 unidades al lote 1 (producto 1)
+    INSERT INTO "Movimientos" ("Cantidad","Tipo","Lote_id","Producto_id")
+    VALUES (10, 'Entrada', 1, 1);
+
+ATENCIÓN - ACTUALIZACIÓN MANUAL DEL STOCK:
+  En esta versión, registrar un movimiento NO modifica automáticamente la
+  Cantidad del lote ni el Stock_total del producto. Hasta que se implemente
+  esa automatización, actualice el stock manualmente o desde la aplicación:
+
+    UPDATE "Lote" SET "Cantidad" = "Cantidad" - 2 WHERE "ID" = 1;
+    UPDATE "Producto" SET "Stock_total" =
+        (SELECT COALESCE(SUM("Cantidad"),0) FROM "Lote"
+          WHERE "Producto_id" = 1 AND "Estado" = TRUE)
+     WHERE "ID" = 1;
+
+Errores frecuentes:
+  - "FK_Movimientos_Lote_Producto" -> el lote indicado no pertenece a ese
+    producto.
+  - "CK_Lote_Fechas" -> la fecha de vencimiento es anterior a la de ingreso.
+  - Cantidad menor o igual a 0 en un movimiento -> no permitido.
+
+------------------------------------------------------------------------------
+9.7 PROMOCIONES
+------------------------------------------------------------------------------
+
+Crear una promoción para un servicio:
+    INSERT INTO "Promocion"
+      ("Nombre","Descripcion","Porcentaje_Descuento","Fecha_Inicio",
+       "Fecha_Fin","Servicio_ID")
+    VALUES
+      ('Martes de barba','20% en barba los martes',20,
+       '2026-10-01','2026-12-31',
+       (SELECT "ID" FROM "Servicio" WHERE "Nombre" = 'Barba'));
+
+Ver promociones vigentes hoy (hora de Perú):
+    SELECT * FROM "Promocion"
+     WHERE "Estado" = TRUE
+       AND (NOW() AT TIME ZONE 'America/Lima')::date
+           BETWEEN "Fecha_Inicio" AND "Fecha_Fin";
+
+Desactivar una promoción:
+    UPDATE "Promocion" SET "Estado" = FALSE WHERE "ID" = 1;
+
+Recuerde: la promoción no cambia precios por sí sola. Para aplicarla, quien
+registra la venta debe colocar el Precio_Unitario ya con el descuento.
+
+
+==============================================================================
+10. CONSULTAS ÚTILES (REPORTES)
+==============================================================================
+
+NOTA SOBRE LA HORA: Supabase trabaja por defecto en hora UTC (5 horas
+adelante de Perú). Para que "hoy" corresponda al día de Lima, use
+(NOW() AT TIME ZONE 'America/Lima')::date, como en los ejemplos siguientes.
+
+10.1 Agenda del día
+    SELECT c.hora_inicio, c.hora_fin,
+           cl."Nombre" || ' ' || cl."Apellido" AS cliente,
+           s."Nombre" AS servicio,
+           u."Nombre" AS trabajador
+      FROM "Cita" c
+      JOIN "Cliente" cl      ON cl."ID" = c.cliente_id
+      JOIN "Cita_Servicio" cs ON cs.cita_id = c."ID"
+      JOIN "Servicio" s      ON s."ID" = cs.servicio_id
+      JOIN "Usuario" u       ON u."ID" = cs.trabajador_id
+     WHERE c.fecha_cita = (NOW() AT TIME ZONE 'America/Lima')::date
+       AND c."Estado" = TRUE
+     ORDER BY c.hora_inicio, u."Nombre";
+
+10.2 Ventas pagadas del día y total cobrado
+    SELECT COUNT(*) AS ventas, COALESCE(SUM("Total"),0) AS total_cobrado
+      FROM "Venta"
+     WHERE "Estado_Venta" = 'Pagado'
+       AND ("Fecha_Venta" AT TIME ZONE 'America/Lima')::date
+           = (NOW() AT TIME ZONE 'America/Lima')::date;
+
+10.3 Ventas por método de pago en un mes
+    SELECT "Metodo_Pago", COUNT(*) AS ventas, SUM("Total") AS total
+      FROM "Venta"
+     WHERE "Estado_Venta" = 'Pagado'
+       AND date_trunc('month', "Fecha_Venta" AT TIME ZONE 'America/Lima')
+           = date_trunc('month', TIMESTAMP '2026-10-01')
+     GROUP BY "Metodo_Pago"
+     ORDER BY total DESC;
+
+10.4 Servicios más vendidos
+    SELECT s."Nombre", SUM(d."Cantidad") AS veces, SUM(d."Subtotal") AS monto
+      FROM "Venta_Detalle" d
+      JOIN "Servicio" s ON s."ID" = d."Servicio_ID"
+     WHERE d."Estado_Detalle" = 'Pagado'
+     GROUP BY s."Nombre"
+     ORDER BY veces DESC;
+
+10.5 Lotes próximos a vencer (30 días)
+    SELECT p."Nombre", l."ID" AS lote, l."Fecha_vencimiento", l."Cantidad"
+      FROM "Lote" l
+      JOIN "Producto" p ON p."ID" = l."Producto_id"
+     WHERE l."Estado" = TRUE AND l."Cantidad" > 0
+       AND l."Fecha_vencimiento" <= CURRENT_DATE + 30
+     ORDER BY l."Fecha_vencimiento";
+
+10.6 Productos con stock bajo (5 unidades o menos)
+    SELECT "Nombre","Stock_total" FROM "Producto"
+     WHERE "Estado" = TRUE AND "Stock_total" <= 5
+     ORDER BY "Stock_total";
+
+10.7 Historial de citas de un cliente
+    SELECT c.fecha_cita, c.hora_inicio, s."Nombre" AS servicio,
+           u."Nombre" AS trabajador, c."Estado"
+      FROM "Cita" c
+      JOIN "Cita_Servicio" cs ON cs.cita_id = c."ID"
+      JOIN "Servicio" s ON s."ID" = cs.servicio_id
+      JOIN "Usuario" u ON u."ID" = cs.trabajador_id
+     WHERE c.cliente_id = 1
+     ORDER BY c.fecha_cita DESC, c.hora_inicio;
+
+10.8 Trabajadores habilitados para un servicio
+    SELECT u."ID", u."Nombre", u."Apellido"
+      FROM "Trabajador_Servicio" ts
+      JOIN "Usuario" u ON u."ID" = ts.usuario_id
+     WHERE ts."Servicio_id" = 1 AND ts."Estado" = TRUE AND u."Estado" = TRUE;
+
+
+==============================================================================
+11. USO DESDE EL BACKEND O EL BOT DE WHATSAPP
+==============================================================================
+
+Estas indicaciones son para quien desarrolle la aplicación.
+
+11.1 Conexión
+  - Use siempre la service_role key desde el servidor (variables de entorno
+    protegidas). Nunca desde el navegador o una app móvil.
+  - La URL del proyecto y las claves están en Project Settings > API.
+
+11.2 Ejemplo con supabase-js (JavaScript)
+    import { createClient } from '@supabase/supabase-js'
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+
+    // Leer clientes
+    const { data, error } = await supabase
+      .from('Cliente')          // los nombres respetan mayúsculas
+      .select('*')
+      .eq('Telefono', '999888777')
+
+    // Registrar una cita (cliente nuevo o existente)
+    const { data: cita, error: err } = await supabase.rpc(
+      'registrar_cita_cliente', {
+        p_nombre: 'Luis',
+        p_apellido: 'Rojas',
+        p_telefono: '777000111',
+        p_dni: null,
+        p_fecha: '2026-10-08',
+        p_hora_inicio: '15:00',
+        p_hora_fin: null,
+        p_servicios: [{ servicio_id: 1, trabajador_id: 1 }]
+      })
+
+    // Verificar inicio de sesión
+    const { data: user } = await supabase.rpc('verificar_credenciales', {
+      p_usuario: 'ana', p_password: 'NuevaClave789'
+    })
+    // user vacío = credenciales incorrectas
+
+11.3 Manejo de errores
+  Cuando una regla se incumple (horario, cruce de trabajador, etc.), la base
+  de datos devuelve un error con un mensaje claro en español. El bot puede
+  mostrar ese mensaje al usuario o traducirlo a una respuesta amable (por
+  ejemplo: "Ese horario ya está ocupado, ¿te sirve a las 16:00?").
+
+11.4 Recomendaciones para el bot de WhatsApp
+  - Guardar el teléfono siempre con el mismo formato (por ejemplo
+    +51999888777) para encontrar clientes sin duplicarlos.
+  - Antes de ofrecer un horario, consultar las citas del trabajador (consulta
+    9.4) para proponer espacios libres.
+  - Usar siempre registrar_cita_cliente para agendar: evita clientes
+    huérfanos o citas a medias.
+
+
+==============================================================================
+12. MENSAJES DE ERROR Y CÓMO RESOLVERLOS
+==============================================================================
+
+MENSAJE / ERROR                              CAUSA Y SOLUCIÓN
+------------------------------------------------------------------------------
+relation "cliente" does not exist            Faltan las comillas dobles y la
+                                             mayúscula. Escriba "Cliente".
+
+column "nombre" does not exist               Igual que el anterior: use
+                                             "Nombre" entre comillas.
+
+La hora de inicio no puede ser antes de      La cita empieza antes de abrir el
+las 10:30 (lunes a sábado) / 11:00           local. Elija una hora dentro del
+(domingo)                                    horario (sección 7.3).
+
+La hora de fin no puede ser después de       La cita termina después del
+las 21:00 (lunes a sábado) / 18:00           cierre. Acorte la cita o cambie
+(domingo)                                    el horario.
+
+El trabajador N ya tiene otra cita que       Otro cliente ya está agendado con
+se cruza en ese horario                      ese trabajador en esas horas. Elija
+                                             otra hora u otro trabajador.
+
+violates foreign key constraint              El trabajador no tiene asignado ese
+"FK_CitaServ_Trabajador_Servicio"            servicio. Regístrelo en
+                                             Trabajador_Servicio (sección 9.2).
+
+violates foreign key constraint              El cliente indicado no existe. Cree
+"FK_Cita_Cliente"                            primero al cliente (sección 9.4).
+
+violates check constraint "CK_Cita_Horas"    hora_fin debe ser mayor que
+                                             hora_inicio.
+
+Color_agenda es OBLIGATORIO para el rol      Un usuario con rol trabajador
+trabajador / Comision_porcentaje es          necesita color y comisión.
+OBLIGATORIO...
+
+violates check constraint                    El color debe ser #RRGGBB, por
+"CK_Usuario_Color"                           ejemplo #FF5733.
+
+duplicate key value violates unique          Ya existe un registro con ese DNI,
+constraint                                   correo, usuario, código o nombre.
+                                             Revise el dato repetido.
+
+violates foreign key constraint              Intentó borrar algo con historial
+"FK_VentaDet_Servicio" / "..._Producto"      (servicio o producto con ventas).
+                                             Desactívelo con Estado = FALSE.
+
+violates check constraint                    La línea de venta debe tener un
+"CK_Venta_Detalle_Tipo"                      servicio o un producto, no ambos
+                                             ni ninguno.
+
+violates foreign key constraint              El lote no pertenece al producto
+"FK_Movimientos_Lote_Producto"               indicado en el movimiento.
+
+Debes indicar al menos un servicio.          La lista p_servicios está vacía
+                                             en registrar_cita_cliente.
+
+permission denied for table ... / datos      Está usando la anon key o un
+vacíos desde la aplicación                   usuario sin políticas. Use la
+                                             service_role key en el servidor
+                                             (sección 4).
+
+permission denied for function               Las funciones solo las ejecuta el
+                                             service_role o el SQL Editor.
+
+function crypt / gen_salt does not exist     La extensión pgcrypto no está
+                                             activa. Ejecute:
+                                             CREATE EXTENSION IF NOT EXISTS
+                                             pgcrypto WITH SCHEMA extensions;
+
+Hora distinta a la esperada                  Supabase usa UTC. Use la zona
+                                             'America/Lima' (sección 10).
+
+
+==============================================================================
+13. BUENAS PRÁCTICAS Y MANTENIMIENTO
+==============================================================================
+
+  1. Copias de seguridad: active y revise los backups en Supabase (Database >
+     Backups). Antes de cambios grandes, haga una copia manual.
+  2. No borre, desactive: use Estado = FALSE en clientes, usuarios,
+     servicios, productos, promociones y lotes. Así se conserva el historial
+     de ventas y citas.
+  3. No modifique Total, Subtotal ni Estado_Venta a mano: se recalculan solos
+     y su cambio sería sobrescrito.
+  4. Contraseñas: asigne contraseñas de al menos 8 caracteres, distintas para
+     cada persona. Cámbielas si alguien deja el equipo.
+  5. Claves de API: guarde la service_role key en variables de entorno. Si se
+     filtra, regenérela de inmediato en Project Settings > API.
+  6. Pruebas: ante cualquier cambio en el script, pruébelo primero en un
+     proyecto de Supabase de prueba, no en el real.
+  7. Citas canceladas: use Estado = FALSE en vez de borrar la cita, para
+     poder revisar cancelaciones.
+  8. Consistencia de teléfonos: guárdelos siempre con el mismo formato.
+  9. Revisión periódica del inventario: consulte los lotes por vencer (10.5)
+     y el stock bajo (10.6) cada semana.
+ 10. Monitoreo: en Supabase, revise "Database > Advisors" para ver
+     recomendaciones de seguridad y rendimiento.
+
+
+==============================================================================
+14. LIMITACIONES CONOCIDAS Y MEJORAS PENDIENTES
+==============================================================================
+
+  - Stock automático: los movimientos no actualizan Lote.Cantidad ni
+    Producto.Stock_total (ver sección 9.6). Pendiente de definir la regla.
+  - Total_visitas del cliente no se incrementa solo.
+  - Estado de la cita: Cita.Estado solo distingue activa/cancelada. Para el
+    bot sería útil un estado más completo (Pendiente, Confirmada,
+    Completada, No asistió).
+  - Promociones: no se aplican automáticamente al precio de la venta.
+  - Permisos por rol: los roles son etiquetas; no hay políticas que limiten
+    lo que puede hacer cada rol. Debe controlarlo la aplicación o crearse
+    políticas RLS (sección 4).
+  - Reservas simultáneas: si dos citas del mismo trabajador se registran en
+    el mismo instante exacto, ambas podrían pasar la validación de cruce. Es
+    poco probable en un solo local, pero posible.
+  - Duración de la cita: la hora de fin se puede indicar manualmente; si se
+    deja vacía en registrar_cita_cliente, se calcula con la duración de los
+    servicios (en el orden indicado, sin tiempos de espera entre ellos).
+  - Autenticación propia: el sistema usa su propia tabla de usuarios y
+    contraseñas. Supabase Auth es una alternativa más completa (recuperación
+    de contraseña, sesiones, etc.) que podría integrarse más adelante.
+
+
+==============================================================================
+15. PREGUNTAS FRECUENTES
+==============================================================================
+
+P: ¿Puedo registrar una cita para un cliente que no está registrado?
+R: Sí, pero el cliente debe crearse primero. La función
+   registrar_cita_cliente lo hace automáticamente en el mismo paso:
+   crea el cliente, la cita y sus servicios.
+
+P: ¿Qué pasa si registro una cita fuera del horario?
+R: La base de datos la rechaza con un mensaje indicando el horario
+   permitido. No se guarda nada.
+
+P: ¿Por qué no me deja borrar un servicio o un producto?
+R: Porque tiene ventas o citas asociadas. Desactívelo con Estado = FALSE; así
+   deja de ofrecerse pero se conserva el historial.
+
+P: ¿Cómo sé si una venta está pagada?
+R: Mire Venta.Estado_Venta. Pasa a "Pagado" automáticamente cuando todas las
+   líneas no canceladas tienen Estado_Detalle = 'Pagado'.
+
+P: ¿Puedo recuperar la contraseña de un usuario?
+R: No. Se guarda cifrada. Lo que se hace es asignar una contraseña nueva
+   (sección 9.1).
+
+P: ¿Un administrador o el jefe pueden atender clientes?
+R: Sí. Para que un usuario aparezca en la agenda debe tener servicios
+   asignados en Trabajador_Servicio; cualquier rol puede tenerlos. Si el rol
+   no es "trabajador", el color de agenda será negro (#000000) y la comisión
+   0 salvo que usted indique otros valores.
+
+P: ¿Puedo ejecutar el script otra vez si algo salió mal?
+R: Sí, los triggers y funciones se recrean sin problema. Las tablas existentes
+   no se modifican; para recrearlas desde cero use el bloque RESET (borra
+   todos los datos).
+
+P: ¿Por qué mi aplicación web no ve los datos aunque están en la tabla?
+R: Porque RLS está activo y no hay políticas para la anon key. Acceda con
+   la service_role key desde el servidor o cree las políticas necesarias.
+
+P: ¿Qué hago si un cliente cambia su cita?
+R: Cambie fecha_cita, hora_inicio y hora_fin de la cita (sección 9.4). Se
+   validan de nuevo el horario del local y los cruces del trabajador.
+
+
+==============================================================================
+16. GLOSARIO
+==============================================================================
+
+  Backend            Programa del servidor que conecta la aplicación con la
+                     base de datos.
+  Borrado lógico     Desactivar un registro (Estado = FALSE) en lugar de
+                     eliminarlo.
+  Cifrado (hash)     Transformación irreversible de la contraseña para que no
+                     pueda leerse.
+  Clave foránea (FK) Vínculo entre dos tablas que garantiza que un dato
+                     exista en la tabla relacionada.
+  Función (RPC)      Operación guardada en la base de datos que se invoca por
+                     su nombre, como registrar_cita_cliente.
+  Lote               Conjunto de unidades de un producto que ingresan juntas
+                     con la misma fecha de vencimiento.
+  RLS                Row Level Security: reglas de Supabase que controlan
+                     quién puede ver o modificar cada fila.
+  service_role key   Clave de acceso total de Supabase; solo para el
+                     servidor.
+  anon key           Clave pública de Supabase, con acceso limitado.
+  SQL Editor         Herramienta del panel de Supabase para ejecutar
+                     consultas y scripts SQL.
+  Trigger            Regla automática que se ejecuta cuando se inserta,
+                     modifica o elimina un registro.
+  UTC                Hora universal; Perú está 5 horas por detrás.
+
+
+==============================================================================
+  FIN DEL MANUAL
+==============================================================================

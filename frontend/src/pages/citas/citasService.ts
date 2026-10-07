@@ -1,330 +1,393 @@
 /**
- * citasService.ts
- * Única puerta de acceso a los datos de citas.
- * Los componentes nunca tocan supabase directamente.
- *
- * Tablas involucradas:
- *   citas                    — fila principal (hora_inicio / hora_fin, no un solo campo)
- *   detalle_citas_servicios  — servicios incluidos en cada cita
- *   clientes                 — join para mostrar nombre / teléfono
- *   usuarios                 — join para trabajador y su color_agenda
- *
- * NOTA: El trigger `recalcular_monto_cita` en Supabase actualiza
- * monto_estimado automáticamente cuando se insertan/eliminan filas
- * en detalle_citas_servicios, así que nunca lo calculamos aquí.
+ * citasService.ts — acceso directo a las tablas de Citas segun schema.sql
  */
-
 import { supabase } from "../../lib/supabaseClient";
 import type {
-  CitaConDetalle,
-  CitaRow,
-  CrearCitaPayload,
-  ActualizarCitaPayload,
-  FiltroCitas,
   CitaAgenda,
-  CategoriaCita,
-  Especialista,
+  CitaConDetalle,
+  CrearCitaPayload,
+  FiltroCitas,
 } from "./types";
 
-// ─── Selector reutilizable con joins ─────────────────────────────────────────
-//
-// Traemos:
-//   • todos los campos de `citas`
-//   • cliente: nombre, apellido, telefono
-//   • trabajador: nombre, apellido, color_agenda
-//   • detalle_citas_servicios → join con servicios para obtener el nombre
-//
-const CITA_SELECT = `
-  *,
-  cliente:clientes ( id, nombre, apellido, telefono ),
-  trabajador:usuarios!citas_trabajador_id_fkey ( id, nombre, apellido, color_agenda ),
-  servicios:detalle_citas_servicios (
-    id,
-    servicio_id,
-    precio_aplicado,
-    duracion_minutos,
-    servicio:servicios ( nombre )
-  )
-` as const;
+// Interfaces Raw de Supabase
+interface ClienteRaw {
+  ID: unknown;
+  Nombre: unknown;
+  Apellido: unknown;
+  Telefono: unknown;
+}
 
-// ─── Helper: aplana la respuesta de supabase al shape CitaConDetalle ──────────
+interface Cita_ServicioRaw {
+  ID: unknown;
+  cita_id: unknown;
+  servicio_id: unknown;
+  trabajador_id: unknown;
+  orden: unknown;
+  Cantidad: unknown;
+  Servicio: unknown;
+}
 
-function mapearCita(raw: Record<string, unknown>): CitaConDetalle {
-  const serviciosRaw = (raw.servicios ?? []) as Array<{
-    id: string;
-    servicio_id: string;
-    precio_aplicado: number;
-    duracion_minutos: number;
-    servicio: { nombre: string } | null;
-  }>;
+interface ServicioRaw {
+  ID: unknown;
+  Nombre: unknown;
+  Precio: unknown;
+  Duracion_minutos: unknown;
+}
 
+/**
+ * Mapea una fila cruda de Cliente
+ */
+function mapCliente(row: ClienteRaw) {
   return {
-    ...(raw as unknown as CitaRow),
-    cliente: raw.cliente as CitaConDetalle["cliente"],
-    trabajador: raw.trabajador as CitaConDetalle["trabajador"],
-    servicios: serviciosRaw.map((d) => ({
-      servicio_id: d.servicio_id,
-      nombre: d.servicio?.nombre ?? "Servicio eliminado",
-      precio_aplicado: d.precio_aplicado,
-      duracion_minutos: d.duracion_minutos,
-    })),
+    ID: String(row.ID ?? ""),
+    Nombre: String(row.Nombre ?? ""),
+    Apellido: row.Apellido ? String(row.Apellido) : "",
+    Telefono: row.Telefono ? String(row.Telefono) : "",
   };
 }
 
-// ─── Obtener lista con filtros opcionales ─────────────────────────────────────
+/**
+ * Mapea una fila cruda de Cita_Servicio
+ */
+function mapCita_Servicio(row: Cita_ServicioRaw): CitaConDetalle["servicios"][0] {
+  const serv = row.Servicio as ServicioRaw | null;
+  const precio = Number(serv?.Precio ?? 0);
+  const duracion = Number(serv?.Duracion_minutos ?? 30);
+  const nombre = serv ? String(serv.Nombre ?? "") : "";
+  return {
+    servicio_id: String(row.servicio_id ?? ""),
+    trabajador_id: row.trabajador_id ? String(row.trabajador_id) : null,
+    orden: Number(row.orden ?? 1),
+    Cantidad: Number(row.Cantidad ?? 1),
+    precio_aplicado: precio,
+    duracion_minutos: duracion,
+    Servicio: serv ? {
+      Nombre: nombre,
+      Precio: precio,
+      Duracion_minutos: duracion,
+    } : null,
+    nombre,
+  };
+}
 
-export async function obtenerCitas(
-  filtros: FiltroCitas = {}
-): Promise<CitaConDetalle[]> {
+/**
+ * Obtiene citas con filtros
+ */
+export async function obtenerCitas(filtros: FiltroCitas = {}): Promise<CitaConDetalle[]> {
   let query = supabase
-    .from("citas")
-    .select(CITA_SELECT)
-    .order("fecha", { ascending: true })
+    .from("Cita")
+    .select(`
+      *,
+      Cliente:Cliente!FK_Cita_Cliente(ID, Nombre, Apellido, Telefono),
+      servicios:Cita_Servicio${filtros.trabajadorId ? "!inner" : ""}(
+        ID,
+        cita_id,
+        servicio_id,
+        trabajador_id,
+        orden,
+        Cantidad,
+        Servicio:Servicio(ID, Nombre, Precio, Duracion_minutos)
+      )
+    `)
+    .order("fecha_cita", { ascending: true })
     .order("hora_inicio", { ascending: true });
 
   if (filtros.fecha) {
-    query = query.eq("fecha", filtros.fecha);
+    query = query.eq("fecha_cita", filtros.fecha);
   }
   if (filtros.fechaDesde) {
-    query = query.gte("fecha", filtros.fechaDesde);
+    query = query.gte("fecha_cita", filtros.fechaDesde);
   }
   if (filtros.fechaHasta) {
-    query = query.lte("fecha", filtros.fechaHasta);
+    query = query.lte("fecha_cita", filtros.fechaHasta);
+  }
+  if (filtros.clienteId) {
+    query = query.eq("cliente_id", filtros.clienteId);
   }
   if (filtros.trabajadorId) {
-    query = query.eq("trabajador_id", filtros.trabajadorId);
+    query = query.eq("servicios.trabajador_id", filtros.trabajadorId);
   }
-  if (filtros.estado) {
-    query = query.eq("estado", filtros.estado);
+  if (filtros.soloActivas !== false) {
+    query = query.eq("Estado", true);
   }
 
   const { data, error } = await query;
-
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((raw) =>
-    mapearCita(raw as Record<string, unknown>)
-  );
+  return (data ?? []).map((raw: Record<string, unknown>) => {
+    const cliente = raw.Cliente as ClienteRaw | null;
+    const serviciosRaw = (raw.servicios ?? []) as Cita_ServicioRaw[];
+    const servicios = serviciosRaw.map(mapCita_Servicio);
+    const fecha = raw.fecha_cita ? String(raw.fecha_cita) : "";
+    const estado = raw.Estado !== false ? "PENDIENTE" : "CANCELADA";
+
+    return {
+      ID: String(raw.ID ?? ""),
+      id: String(raw.ID ?? ""),
+      cliente_id: String(raw.cliente_id ?? ""),
+      trabajador_id: servicios[0]?.trabajador_id ?? null,
+      fecha_cita: fecha,
+      hora_inicio: raw.hora_inicio ? String(raw.hora_inicio) : "",
+      hora_fin: raw.hora_fin ? String(raw.hora_fin) : "",
+      Estado: raw.Estado !== false,
+      Cliente: cliente ? mapCliente(cliente) : null,
+      servicios,
+      cliente: cliente ? {
+        id: String(raw.cliente_id ?? ""),
+        nombre: cliente.Nombre ? String(cliente.Nombre) : "",
+        apellido: cliente.Apellido ? String(cliente.Apellido) : null,
+        telefono: cliente.Telefono ? String(cliente.Telefono) : null,
+      } : null,
+      trabajador: servicios[0]?.trabajador_id ? { id: servicios[0].trabajador_id, nombre: "" } : null,
+      fecha,
+      estado,
+      codigo_cita: String(raw.ID ?? ""),
+      monto_estimado: servicios.reduce((total, s) => total + Number(s.precio_aplicado ?? 0), 0),
+      notas: null,
+    } satisfies CitaConDetalle;
+  });
 }
 
-// ─── Obtener una cita por ID ──────────────────────────────────────────────────
-
+/**
+ * Obtiene una cita por su ID
+ */
 export async function obtenerCitaPorId(id: string): Promise<CitaConDetalle> {
   const { data, error } = await supabase
-    .from("citas")
-    .select(CITA_SELECT)
-    .eq("id", id)
+    .from("Cita")
+    .select(`
+      *,
+      Cliente:Cliente!FK_Cita_Cliente(ID, Nombre, Apellido, Telefono),
+      servicios:Cita_Servicio(
+        ID,
+        cita_id,
+        servicio_id,
+        trabajador_id,
+        orden,
+        Cantidad,
+        Servicio:Servicio(ID, Nombre, Precio, Duracion_minutos)
+      )
+    `)
+    .eq("ID", id)
     .single();
 
   if (error) throw new Error(error.message);
 
-  return mapearCita(data as Record<string, unknown>);
+  const raw = data as Record<string, unknown>;
+  const cliente = raw.Cliente as ClienteRaw | null;
+  const serviciosRaw = (raw.servicios ?? []) as Cita_ServicioRaw[];
+  const servicios = serviciosRaw.map(mapCita_Servicio);
+
+  const fecha = raw.fecha_cita ? String(raw.fecha_cita) : "";
+  const estado = raw.Estado !== false ? "PENDIENTE" : "CANCELADA";
+
+  return {
+    ID: String(raw.ID ?? ""),
+    id: String(raw.ID ?? ""),
+    cliente_id: String(raw.cliente_id ?? ""),
+    trabajador_id: servicios[0]?.trabajador_id ?? null,
+    fecha_cita: fecha,
+    hora_inicio: raw.hora_inicio ? String(raw.hora_inicio) : "",
+    hora_fin: raw.hora_fin ? String(raw.hora_fin) : "",
+    Estado: raw.Estado !== false,
+    Cliente: cliente ? mapCliente(cliente) : null,
+    servicios,
+    cliente: cliente ? {
+      id: String(raw.cliente_id ?? ""),
+      nombre: cliente.Nombre ? String(cliente.Nombre) : "",
+      apellido: cliente.Apellido ? String(cliente.Apellido) : null,
+      telefono: cliente.Telefono ? String(cliente.Telefono) : null,
+    } : null,
+    trabajador: servicios[0]?.trabajador_id ? { id: servicios[0].trabajador_id, nombre: "" } : null,
+    fecha,
+    estado,
+    codigo_cita: String(raw.ID ?? ""),
+    monto_estimado: servicios.reduce((total, s) => total + Number(s.precio_aplicado ?? 0), 0),
+    notas: null,
+  } satisfies CitaConDetalle;
 }
 
-// ─── Crear una cita + sus detalles (transacción manual) ──────────────────────
-//
-// Supabase no soporta transacciones client-side, así que:
-//   1. Insertamos la cita.
-//   2. Insertamos los detalles.
-//   Si el paso 2 falla, lanzamos el error (la cita quedó sin detalles;
-//   en producción esto debería resolverse con una Edge Function o RPC).
-
-export async function crearCita(
-  payload: CrearCitaPayload
-): Promise<CitaConDetalle> {
-  // 1. Insertar cita principal
+/**
+ * Crea una cita con sus servicios
+ */
+export async function crearCita(payload: CrearCitaPayload): Promise<CitaConDetalle> {
+  // 1. Crear la cita
   const { data: citaData, error: citaError } = await supabase
-    .from("citas")
+    .from("Cita")
     .insert({
       cliente_id: payload.cliente_id,
-      trabajador_id: payload.trabajador_id ?? null,
-      fecha: payload.fecha,
+      fecha_cita: payload.fecha_cita,
       hora_inicio: payload.hora_inicio,
       hora_fin: payload.hora_fin,
-      estado: payload.estado ?? "PENDIENTE",
-      origen: payload.origen ?? "PWA_RECEPCION",
-      notas: payload.notas ?? null,
+      Estado: true,
     })
-    .select("id")
+    .select("ID")
     .single();
 
   if (citaError) throw new Error(citaError.message);
+  const citaId = (citaData as { ID: number }).ID;
 
-  const citaId = (citaData as { id: string }).id;
-
-  // 2. Insertar detalles de servicios
+  // 2. Insertar los servicios de la cita
   if (payload.servicios.length > 0) {
-    const detalles = payload.servicios.map((s) => ({
+    const detalles = payload.servicios.map((s, index) => ({
       cita_id: citaId,
       servicio_id: s.servicio_id,
-      precio_aplicado: s.precio_aplicado,
-      duracion_minutos: s.duracion_minutos,
+      trabajador_id: s.trabajador_id,
+      orden: s.orden ?? index + 1,
+      Cantidad: s.Cantidad ?? 1,
     }));
 
     const { error: detalleError } = await supabase
-      .from("detalle_citas_servicios")
+      .from("Cita_Servicio")
       .insert(detalles);
 
     if (detalleError) {
-      throw new Error(
-        `Cita creada (${citaId}) pero falló al guardar los servicios: ${detalleError.message}`
-      );
+      // Si falla, eliminamos la cita creada
+      await supabase.from("Cita").delete().eq("ID", citaId);
+      throw new Error(`Error al guardar servicios: ${detalleError.message}`);
     }
   }
 
-  // 3. Devolver la cita completa con joins
-  return obtenerCitaPorId(citaId);
+  // 3. Devolver la cita completa
+  return obtenerCitaPorId(String(citaId));
 }
 
-// ─── Actualizar estado o datos básicos de una cita ───────────────────────────
-
+/**
+ * Actualiza una cita existente
+ */
 export async function actualizarCita(
   id: string,
-  cambios: ActualizarCitaPayload
+  cambios: Partial<CrearCitaPayload>
 ): Promise<CitaConDetalle> {
-  const { servicios, ...camposCita } = cambios;
+  const updateData: Record<string, unknown> = {};
 
-  // Actualizar campos de la cita si los hay
-  if (Object.keys(camposCita).length > 0) {
+  if (cambios.fecha_cita !== undefined) updateData.fecha_cita = cambios.fecha_cita;
+  if (cambios.hora_inicio !== undefined) updateData.hora_inicio = cambios.hora_inicio;
+  if (cambios.hora_fin !== undefined) updateData.hora_fin = cambios.hora_fin;
+
+  if (Object.keys(updateData).length > 0) {
     const { error } = await supabase
-      .from("citas")
-      .update(camposCita)
-      .eq("id", id);
+      .from("Cita")
+      .update(updateData)
+      .eq("ID", id);
 
     if (error) throw new Error(error.message);
   }
 
-  // Reemplazar detalles si se proporcionan
-  if (servicios !== undefined) {
-    // Borrar detalles existentes
-    const { error: borrarError } = await supabase
-      .from("detalle_citas_servicios")
+  // Actualizar servicios si se proporcionan
+  if (cambios.servicios !== undefined) {
+    // Eliminar servicios existentes
+    const { error: deleteError } = await supabase
+      .from("Cita_Servicio")
       .delete()
       .eq("cita_id", id);
 
-    if (borrarError) throw new Error(borrarError.message);
+    if (deleteError) throw new Error(deleteError.message);
 
-    // Insertar nuevos detalles
-    if (servicios.length > 0) {
-      const detalles = servicios.map((s) => ({
-        cita_id: id,
+    // Insertar nuevos servicios
+    if (cambios.servicios.length > 0) {
+      const detalles = cambios.servicios.map((s, index) => ({
+        cita_id: Number(id),
         servicio_id: s.servicio_id,
-        precio_aplicado: s.precio_aplicado,
-        duracion_minutos: s.duracion_minutos,
+        trabajador_id: s.trabajador_id,
+        orden: s.orden ?? index + 1,
+        Cantidad: s.Cantidad ?? 1,
       }));
 
-      const { error: insertarError } = await supabase
-        .from("detalle_citas_servicios")
+      const { error: insertError } = await supabase
+        .from("Cita_Servicio")
         .insert(detalles);
 
-      if (insertarError) throw new Error(insertarError.message);
+      if (insertError) throw new Error(insertError.message);
     }
   }
 
   return obtenerCitaPorId(id);
 }
 
-// ─── Cambiar solo el estado de una cita (acción rápida desde agenda) ─────────
-
-export async function cambiarEstadoCita(
-  id: string,
-  estado: import("./types").EstadoCita
-): Promise<void> {
+/**
+ * Cambia el estado de una cita (activar/desactivar)
+ */
+export async function cambiarEstadoCita(id: string, activo: boolean): Promise<void> {
   const { error } = await supabase
-    .from("citas")
-    .update({ estado })
-    .eq("id", id);
+    .from("Cita")
+    .update({ Estado: activo })
+    .eq("ID", id);
 
   if (error) throw new Error(error.message);
 }
-
-// ─── Eliminar una cita (y sus detalles, ON DELETE CASCADE en la BD) ───────────
-
-export async function eliminarCita(id: string): Promise<void> {
-  const { error } = await supabase.from("citas").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
-// ─── Helpers de conveniencia ──────────────────────────────────────────────────
 
 /**
- * Devuelve las citas del día actual (fecha local del navegador).
+ * Cancela una cita (desactiva)
+ */
+export async function cancelarCita(id: string): Promise<void> {
+  await cambiarEstadoCita(id, false);
+}
+
+/**
+ * Reactiva una cita cancelada
+ */
+export async function reactivarCita(id: string): Promise<void> {
+  await cambiarEstadoCita(id, true);
+}
+
+/**
+ * Elimina una cita (borrado fisico - usar con cuidado)
+ */
+export async function eliminarCita(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("Cita")
+    .delete()
+    .eq("ID", id);
+
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Obtiene las citas del dia actual
  */
 export async function obtenerCitasDeHoy(): Promise<CitaConDetalle[]> {
-  const hoy = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
+  const hoy = new Date().toISOString().split("T")[0];
   return obtenerCitas({ fecha: hoy });
 }
 
 /**
- * Devuelve las citas de una semana (lunes → domingo) dado un Date cualquiera
- * dentro de esa semana.
+ * Obtiene las citas de un cliente
  */
-export async function obtenerCitasDeSemana(
-  fechaReferencia: Date
-): Promise<CitaConDetalle[]> {
-  const dia = fechaReferencia.getDay(); // 0 = domingo
-  const diffLunes = dia === 0 ? -6 : 1 - dia;
-  const lunes = new Date(fechaReferencia);
-  lunes.setDate(lunes.getDate() + diffLunes);
-  const domingo = new Date(lunes);
-  domingo.setDate(domingo.getDate() + 6);
-
-  const toISO = (d: Date) => d.toISOString().split("T")[0];
-
-  return obtenerCitas({ fechaDesde: toISO(lunes), fechaHasta: toISO(domingo) });
+export async function obtenerCitasPorCliente(clienteId: string): Promise<CitaConDetalle[]> {
+  return obtenerCitas({ clienteId });
 }
+// ==================== FUNCIONES DE COMPATIBILIDAD ====================
 
-// Compatibilidad mínima para la agenda legacy que aún consume CitasPage.tsx.
+/**
+ * Funcion legacy para compatibilidad con la agenda
+ */
 export async function obtenerCitasPorFiltro(params: {
   day?: number;
-  staff?: Especialista;
-  services?: CategoriaCita[];
+  staff?: string;
+  services?: string[];
 } = {}): Promise<CitaAgenda[]> {
   const todas = await obtenerCitas();
 
-  const resolverCategoria = (cita: CitaConDetalle): CategoriaCita => {
-    const nombreServicio = cita.servicios[0]?.nombre?.toLowerCase() ?? "";
-    if (nombreServicio.includes("uñas") || nombreServicio.includes("manicura") || nombreServicio.includes("pedicura")) return "nails";
-    if (nombreServicio.includes("piel") || nombreServicio.includes("facial") || nombreServicio.includes("limpieza")) return "skin";
-    return "hair";
-  };
-
-  const resolverStaff = (cita: CitaConDetalle): Exclude<Especialista, "Todos"> => {
-    const nombre = cita.trabajador?.nombre?.toLowerCase() ?? "";
-    const apellido = cita.trabajador?.apellido?.toLowerCase() ?? "";
-
-    if (nombre.includes("elena") || apellido.includes("elena")) return "Elena";
-    if (nombre.includes("carlos") || apellido.includes("carlos")) return "Carlos";
-    if (nombre.includes("soto") || apellido.includes("soto") || nombre.includes("dra") || apellido.includes("soto")) return "Dra. Soto";
-    return "Elena";
-  };
-
   return todas
-    .filter((cita) => {
-      const day = Number((cita.fecha ?? "").split("-")[2] ?? 0);
-      const matchesDay = params.day ? day === params.day : true;
-      const matchesStaff = params.staff && params.staff !== "Todos" ? resolverStaff(cita) === params.staff : true;
-      const matchesService = params.services && params.services.length > 0 ? params.services.includes(resolverCategoria(cita)) : true;
-      return matchesDay && matchesStaff && matchesService;
-    })
     .map((cita, index) => {
-      const fecha = new Date(`${cita.fecha}T00:00:00`);
-      const horaInicio = cita.hora_inicio ?? "09:00:00";
-      const horaFin = cita.hora_fin ?? "10:00:00";
-      const category = resolverCategoria(cita);
-      const staff = resolverStaff(cita);
+    const fecha = new Date(`${cita.fecha_cita}T00:00:00`);
+    const horaInicio = cita.hora_inicio || "09:00:00";
+    const horaFin = cita.hora_fin || "10:00:00";
+    const title = cita.servicios[0]?.Servicio?.Nombre || "Cita";
 
-      return {
-        id: cita.id,
-        day: fecha.getDate(),
-        title: cita.servicios[0]?.nombre ?? "Cita",
-        staff,
-        category,
-        time: `${horaInicio.slice(0, 5)} - ${horaFin.slice(0, 5)}`,
-        client: `${cita.cliente?.nombre ?? "Cliente"} ${cita.cliente?.apellido ?? ""}`.trim(),
-        top: 64 + index * 36,
-        left: (index % 5) * 14.285 + 14.285,
-      } satisfies CitaAgenda;
-    });
+    return {
+      id: cita.ID,
+      day: fecha.getDate(),
+      title,
+      staff: "Elena" as const,
+      category: "hair" as const,
+      time: `${horaInicio.slice(0, 5)} - ${horaFin.slice(0, 5)}`,
+      client: `${cita.Cliente?.Nombre || "Cliente"} ${cita.Cliente?.Apellido || ""}`.trim(),
+      top: 64 + index * 36,
+      left: (index % 5) * 14.285 + 14.285,
+    };
+    })
+    .filter((cita) => params.day === undefined || cita.day === params.day)
+    .filter((cita) => params.staff === undefined || cita.staff === params.staff)
+    .filter((cita) => params.services === undefined || params.services.includes(cita.title));
 }
-

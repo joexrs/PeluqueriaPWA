@@ -159,10 +159,11 @@
 }
 
 .cliente-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 760px;
+  padding: 24px;
   align-self: start;
   width: 100%;
 }
@@ -170,6 +171,7 @@
 .cliente-form h2 {
   font-size: 20px;
   margin: 0;
+  grid-column: 1 / -1;
 }
 
 .cliente-form label {
@@ -181,7 +183,11 @@
   font-weight: 600;
 }
 
-.cliente-form input {
+.cliente-form input,
+.cliente-form textarea,
+.cliente-form select {
+  width: 100%;
+  min-height: 42px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 9px 10px;
@@ -189,6 +195,15 @@
   color: var(--color-ink);
   font-family: var(--font-body);
   font-size: 14px;
+}
+
+.cliente-form textarea {
+  resize: vertical;
+}
+
+.cliente-form > .banner-error,
+.cliente-form > .form-actions {
+  grid-column: 1 / -1;
 }
 
 .form-actions {
@@ -338,11 +353,14 @@
 /* Improved responsive table for clientes */
 @media (max-width: 640px) {
   .cliente-form {
+    grid-template-columns: 1fr;
     padding: 16px;
   }
 
-  .cliente-form label {
-    margin-bottom: 12px;
+  .cliente-form h2,
+  .cliente-form > .banner-error,
+  .cliente-form > .form-actions {
+    grid-column: auto;
   }
 
   .cliente-form h2 {

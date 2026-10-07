@@ -18,9 +18,6 @@ interface FormState {
   descripcion: string;
   precio_base: string;
   duracion_minutos: string;
-  tiempo_limpieza_minutos: string;
-  aforo_maximo_diario: string;
-  aforo_simultaneo_maximo: string;
 }
 
 const formVacio: FormState = {
@@ -29,9 +26,6 @@ const formVacio: FormState = {
   descripcion: "",
   precio_base: "",
   duracion_minutos: "",
-  tiempo_limpieza_minutos: "5",
-  aforo_maximo_diario: "10",
-  aforo_simultaneo_maximo: "2",
 };
 
 export default function ServiciosPage() {
@@ -88,7 +82,7 @@ export default function ServiciosPage() {
     });
   }, [servicios, busqueda]);
 
-  const servicioDetalle = servicios.find((s) => s.id === servicioSeleccionadoId) ?? null;
+  const servicioDetalle = servicios.find((s) => s.ID === servicioSeleccionadoId) ?? null;
 
   function resetFormulario() {
     setForm(formVacio);
@@ -104,18 +98,15 @@ export default function ServiciosPage() {
 
   function abrirFormulario(id?: string) {
     if (id) {
-      const servicio = servicios.find((s) => s.id === id);
+      const servicio = servicios.find((s) => s.ID === id);
       if (servicio) {
-        setEditandoId(servicio.id);
+        setEditandoId(servicio.ID);
         setForm({
-          nombre: servicio.nombre,
-          categoria_id: servicio.categoria_id ?? "",
-          descripcion: servicio.descripcion ?? "",
-          precio_base: String(servicio.precio_base),
-          duracion_minutos: String(servicio.duracion_minutos),
-          tiempo_limpieza_minutos: String(servicio.tiempo_limpieza_minutos),
-          aforo_maximo_diario: String(servicio.aforo_maximo_diario),
-          aforo_simultaneo_maximo: String(servicio.aforo_simultaneo_maximo),
+          nombre: servicio.Nombre,
+          categoria_id: servicio.Categoria_id ?? "",
+          descripcion: servicio.Descripcion ?? "",
+          precio_base: String(servicio.Precio),
+          duracion_minutos: String(servicio.Duracion_minutos),
         });
       }
     } else {
@@ -136,9 +127,6 @@ export default function ServiciosPage() {
 
     const precioBase = Number(form.precio_base);
     const duracion = Number(form.duracion_minutos);
-    const tiempoLimpieza = Number(form.tiempo_limpieza_minutos);
-    const aforoMaximo = Number(form.aforo_maximo_diario);
-    const aforoSimultaneo = Number(form.aforo_simultaneo_maximo);
 
     if (Number.isNaN(precioBase) || precioBase < 0) {
       setError("El precio debe ser un número válido.");
@@ -148,39 +136,27 @@ export default function ServiciosPage() {
       setError("La duración debe ser mayor que 0.");
       return;
     }
-    if (Number.isNaN(tiempoLimpieza) || tiempoLimpieza < 0) {
-      setError("El tiempo de limpieza no puede ser negativo.");
-      return;
-    }
-    if (Number.isNaN(aforoMaximo) || aforoMaximo <= 0) {
-      setError("El aforo diario debe ser mayor que 0.");
-      return;
-    }
-    if (Number.isNaN(aforoSimultaneo) || aforoSimultaneo <= 0) {
-      setError("El aforo simultáneo debe ser mayor que 0.");
-      return;
-    }
-
     const payload = {
-      nombre: form.nombre.trim(),
+      Nombre: form.nombre.trim(),
       categoria_id: form.categoria_id || null,
       descripcion: form.descripcion.trim() || null,
       precio_base: precioBase,
       duracion_minutos: duracion,
-      tiempo_limpieza_minutos: tiempoLimpieza,
-      aforo_maximo_diario: aforoMaximo,
-      aforo_simultaneo_maximo: aforoSimultaneo,
+      Precio: precioBase,
+      Duracion_minutos: duracion,
+      Categoria_id: form.categoria_id || null,
+      Descripcion: form.descripcion.trim() || null,
     };
 
     try {
       if (editandoId) {
         const actualizado = await actualizarServicio(editandoId, payload);
-        setServicios((prev) => prev.map((s) => (s.id === actualizado.id ? actualizado : s)));
-        setServicioSeleccionadoId(actualizado.id);
+        setServicios((prev) => prev.map((s) => (s.ID === actualizado.ID ? actualizado : s)));
+        setServicioSeleccionadoId(actualizado.ID);
       } else {
         const creado = await crearServicio(payload);
         setServicios((prev) => [creado, ...prev]);
-        setServicioSeleccionadoId(creado.id);
+        setServicioSeleccionadoId(creado.ID);
       }
       setError(null);
       setVista("detalle");
@@ -259,17 +235,17 @@ export default function ServiciosPage() {
                 </tr>
               ) : (
                 serviciosFiltrados.map((servicio) => (
-                  <tr key={servicio.id} className="fila-clickable" onClick={() => abrirDetalle(servicio.id)}>
-                    <td data-label="Nombre">{servicio.nombre}</td>
-                    <td data-label="Categoría">{servicio.categoria?.nombre ?? "Sin categoría"}</td>
-                    <td data-label="Precio">${servicio.precio_base}</td>
-                    <td data-label="Duración">{servicio.duracion_minutos} min</td>
+                  <tr key={servicio.ID} className="fila-clickable" onClick={() => abrirDetalle(servicio.ID)}>
+                    <td data-label="Nombre">{servicio.Nombre}</td>
+                    <td data-label="Categoría">{servicio.Categoria_Servicio?.Nombre ?? "Sin categoría"}</td>
+                    <td data-label="Precio">${servicio.Precio}</td>
+                    <td data-label="Duración">{servicio.Duracion_minutos} min</td>
                     <td data-label="Acciones">
                       <div className="acciones-cell" onClick={(e) => e.stopPropagation()}>
-                        <button className="btn btn-ghost small" onClick={() => abrirFormulario(servicio.id)}>
+                        <button className="btn btn-ghost small" onClick={() => abrirFormulario(servicio.ID)}>
                           Editar
                         </button>
-                        <button className="btn btn-danger small" onClick={() => void handleDelete(servicio.id)}>
+                        <button className="btn btn-danger small" onClick={() => void handleDelete(servicio.ID)}>
                           Eliminar
                         </button>
                       </div>
@@ -291,41 +267,29 @@ export default function ServiciosPage() {
           ← Volver a servicios
         </span>
 
-        <h2 className="detalle-titulo">{servicioDetalle.nombre}</h2>
-        <p className="sub">{servicioDetalle.categoria?.nombre ?? "Sin categoría"}</p>
+        <h2 className="detalle-titulo">{servicioDetalle.Nombre}</h2>
+        <p className="sub">{servicioDetalle.Categoria_Servicio?.Nombre ?? "Sin categoría"}</p>
 
         <div className="detalle-grid">
           <div className="detalle-card">
             <div className="info-row">
               <span>Descripción</span>
-              <span>{servicioDetalle.descripcion ?? "—"}</span>
+              <span>{servicioDetalle.Descripcion ?? "—"}</span>
             </div>
             <div className="info-row">
               <span>Precio base</span>
-              <span>${servicioDetalle.precio_base}</span>
+              <span>${servicioDetalle.Precio}</span>
             </div>
             <div className="info-row">
               <span>Duración</span>
-              <span>{servicioDetalle.duracion_minutos} minutos</span>
-            </div>
-            <div className="info-row">
-              <span>Limpieza</span>
-              <span>{servicioDetalle.tiempo_limpieza_minutos} minutos</span>
-            </div>
-            <div className="info-row">
-              <span>Aforo diario</span>
-              <span>{servicioDetalle.aforo_maximo_diario}</span>
-            </div>
-            <div className="info-row">
-              <span>Aforo simultáneo</span>
-              <span>{servicioDetalle.aforo_simultaneo_maximo}</span>
+              <span>{servicioDetalle.Duracion_minutos} minutos</span>
             </div>
 
             <div className="form-actions" style={{ marginTop: 16 }}>
-              <button className="btn btn-ghost" onClick={() => abrirFormulario(servicioDetalle.id)}>
+              <button className="btn btn-ghost" onClick={() => abrirFormulario(servicioDetalle.ID)}>
                 Editar
               </button>
-              <button className="btn btn-danger" onClick={() => void handleDelete(servicioDetalle.id)}>
+              <button className="btn btn-danger" onClick={() => void handleDelete(servicioDetalle.ID)}>
                 Eliminar
               </button>
             </div>
@@ -364,8 +328,8 @@ export default function ServiciosPage() {
             >
               <option value="">Sin categoría</option>
               {categorias.map((categoria) => (
-                <option key={categoria.id} value={categoria.id}>
-                  {categoria.nombre}
+                <option key={categoria.ID} value={categoria.ID}>
+                  {categoria.Nombre}
                 </option>
               ))}
             </select>
@@ -398,36 +362,6 @@ export default function ServiciosPage() {
               min="1"
               value={form.duracion_minutos}
               onChange={(e) => setForm((prev) => ({ ...prev, duracion_minutos: e.target.value }))}
-            />
-          </label>
-
-          <label>
-            Tiempo de limpieza (minutos)
-            <input
-              type="number"
-              min="0"
-              value={form.tiempo_limpieza_minutos}
-              onChange={(e) => setForm((prev) => ({ ...prev, tiempo_limpieza_minutos: e.target.value }))}
-            />
-          </label>
-
-          <label>
-            Aforo máximo diario
-            <input
-              type="number"
-              min="1"
-              value={form.aforo_maximo_diario}
-              onChange={(e) => setForm((prev) => ({ ...prev, aforo_maximo_diario: e.target.value }))}
-            />
-          </label>
-
-          <label>
-            Aforo simultáneo máximo
-            <input
-              type="number"
-              min="1"
-              value={form.aforo_simultaneo_maximo}
-              onChange={(e) => setForm((prev) => ({ ...prev, aforo_simultaneo_maximo: e.target.value }))}
             />
           </label>
 

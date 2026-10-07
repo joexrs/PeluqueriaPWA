@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { obtenerProductos } from "../productos/productosService";
 import type { ProductoConLotes } from "../productos/types";
-import { agregarProductoVenta, obtenerVentaPorCita, registrarPago } from "./ventasService";
+import { agregarProductoVenta, obtenerVentasDeCitas, registrarPago } from "./ventasService";
 import type { MetodoPago, ProductoVenta, VentaCita } from "./types";
 import "./ventas.css";
 
-const CITA_ID = "cita-101";
-
 export default function VentasPage() {
   const [venta, setVenta] = useState<VentaCita | null>(null);
+  const [ventas, setVentas] = useState<VentaCita[]>([]);
   const [productosCatalogo, setProductosCatalogo] = useState<ProductoConLotes[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +15,7 @@ export default function VentasPage() {
   const [cantidad, setCantidad] = useState(1);
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("tarjeta");
   const [montoRecibido, setMontoRecibido] = useState(0);
+  const [ocupado, setOcupado] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,16 +23,20 @@ export default function VentasPage() {
       if (cancelled) return;
       try {
         setLoading(true);
-        const [ventaData, productosData] = await Promise.all([
-          obtenerVentaPorCita(CITA_ID),
+        const [ventasData, productosData] = await Promise.all([
+          obtenerVentasDeCitas(),
           obtenerProductos({ soloActivos: true }),
         ]);
 
         if (cancelled) return;
-        setVenta(ventaData);
+        const pendientes = ventasData.filter((item) => !item.pagada);
+        const citaSolicitada = new URLSearchParams(window.location.search).get("cita_id");
+        const inicial = pendientes.find((item) => item.citaId === citaSolicitada) ?? pendientes[0] ?? null;
+        setVentas(pendientes);
+        setVenta(inicial);
         setProductosCatalogo(productosData);
-        setProductoId((actual) => actual || productosData[0]?.id || "");
-        setMontoRecibido(ventaData?.total ?? 0);
+        setProductoId((actual) => actual || productosData.find((p) => p.stock_total > 0)?.id || "");
+        setMontoRecibido(inicial?.total ?? 0);
         setError(null);
       } catch (err) {
         if (cancelled) return;
@@ -61,12 +65,20 @@ export default function VentasPage() {
     if (!venta || !productoId) return;
 
     try {
-      const actualizada = await agregarProductoVenta(CITA_ID, productoId, cantidad);
+      if (!Number.isInteger(cantidad) || cantidad < 1) {
+        setError("La cantidad debe ser un entero mayor que cero.");
+        return;
+      }
+      setOcupado(true);
+      const actualizada = await agregarProductoVenta(venta.citaId, productoId, cantidad);
       setVenta(actualizada);
+      setVentas((actuales) => actuales.map((item) => item.citaId === actualizada.citaId ? actualizada : item));
       setError(null);
       setCantidad(1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo añadir el producto.");
+    } finally {
+      setOcupado(false);
     }
   }
 
@@ -74,11 +86,16 @@ export default function VentasPage() {
     if (!venta) return;
 
     try {
-      const actualizada = await registrarPago(CITA_ID, metodoPago, Number(montoRecibido || venta.total));
+      setOcupado(true);
+      const actualizada = await registrarPago(venta.citaId, metodoPago, Number(montoRecibido));
       setVenta(actualizada);
+      setVentas((actuales) => actuales.filter((item) => item.citaId !== actualizada.citaId));
+      setVenta(null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo registrar el pago.");
+    } finally {
+      setOcupado(false);
     }
   }
 
@@ -91,19 +108,43 @@ export default function VentasPage() {
     );
   }
 
-  if (!venta) {
+  if (!venta && ventas.length === 0) {
     return (
-      <div className="empty-state">
-        <div className="empty-icon">🧾</div>
-        <strong>No hay una venta activa para esta cita.</strong>
+      <div className="ventas-page">
+        {error && <div className="banner-error">{error}</div>}
+        <div className="empty-state">
+          <div className="empty-icon">🧾</div>
+          <strong>No hay ventas pendientes asociadas a citas.</strong>
+          <p>Registra una venta desde el detalle de una cita para que aparezca aquí.</p>
+          <a className="btn btn-primary" href="/citas">Ir a citas</a>
+        </div>
       </div>
     );
   }
 
-  const cambio = Math.max(Number(montoRecibido || 0) - venta.total, 0);
+  const cambio = Math.max(Number(montoRecibido || 0) - (venta?.total ?? 0), 0);
 
   return (
     <div className="ventas-page">
+      <label className="venta-selector">
+        Venta pendiente
+        <select
+          value={venta?.citaId ?? ""}
+          onChange={(event) => {
+            const seleccionada = ventas.find((item) => item.citaId === event.target.value) ?? null;
+            setVenta(seleccionada);
+            setMontoRecibido(seleccionada?.total ?? 0);
+            setError(null);
+          }}
+        >
+          {ventas.map((item) => (
+            <option key={item.id} value={item.citaId}>
+              {item.clienteNombre || "Cliente"} · Cita {item.citaId} · S/ {item.total.toFixed(2)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {!venta ? <div className="empty-state">Selecciona una venta pendiente.</div> : <>
       <div className="ventas-header">
         <div>
           <p className="eyebrow">Cerrar cita</p>
@@ -126,7 +167,7 @@ export default function VentasPage() {
                   <strong>{servicio.nombre}</strong>
                   <small>{servicio.duracion} min</small>
                 </div>
-                <span>€{servicio.precio}</span>
+                <span>S/ {servicio.precio.toFixed(2)}</span>
               </div>
             ))}
           </div>
@@ -135,9 +176,9 @@ export default function VentasPage() {
           <form className="producto-form" onSubmit={handleAgregarProducto}>
             <select value={productoId} onChange={(e) => setProductoId(e.target.value)}>
               <option value="">Selecciona producto</option>
-              {productosCatalogo.map((producto) => (
+              {productosCatalogo.filter((producto) => producto.stock_total > 0).map((producto) => (
                 <option key={producto.id} value={producto.id}>
-                  {producto.nombre}
+                  {producto.nombre} (stock: {producto.stock_total})
                 </option>
               ))}
             </select>
@@ -145,11 +186,12 @@ export default function VentasPage() {
             <input
               type="number"
               min={1}
+              max={productosCatalogo.find((item) => item.id === productoId)?.stock_total ?? 1}
               value={cantidad}
               onChange={(e) => setCantidad(Number(e.target.value || 1))}
             />
 
-            <button className="btn btn-primary" type="submit" disabled={!productoId}>
+            <button className="btn btn-primary" type="submit" disabled={!productoId || ocupado}>
               + Añadir
             </button>
           </form>
@@ -164,7 +206,7 @@ export default function VentasPage() {
                     <strong>{producto.nombre}</strong>
                     <small>{producto.cantidad} ud.</small>
                   </div>
-                  <span>€{producto.precioUnitario * producto.cantidad}</span>
+                  <span>S/ {(producto.precioUnitario * producto.cantidad).toFixed(2)}</span>
                 </div>
               ))
             )}
@@ -176,15 +218,15 @@ export default function VentasPage() {
 
           <div className="summary-row">
             <span>Servicios</span>
-            <strong>€{totalServicios}</strong>
+            <strong>S/ {totalServicios.toFixed(2)}</strong>
           </div>
           <div className="summary-row">
             <span>Productos</span>
-            <strong>€{totalProductos}</strong>
+            <strong>S/ {totalProductos.toFixed(2)}</strong>
           </div>
           <div className="summary-row total-row">
             <span>Total</span>
-            <strong>€{venta.total}</strong>
+            <strong>S/ {venta.total.toFixed(2)}</strong>
           </div>
 
           <div className="payment-box">
@@ -203,7 +245,7 @@ export default function VentasPage() {
               Importe recibido
               <input
                 type="number"
-                min="0"
+                min={venta.total}
                 step="0.01"
                 value={montoRecibido}
                 onChange={(e) => setMontoRecibido(Number(e.target.value || 0))}
@@ -212,15 +254,16 @@ export default function VentasPage() {
 
             <div className="summary-row">
               <span>Cambio</span>
-              <strong>€{cambio}</strong>
+              <strong>S/ {cambio.toFixed(2)}</strong>
             </div>
           </div>
 
-          <button className="btn btn-primary full" onClick={() => void handleRegistrarPago()} disabled={venta.pagada}>
-            {venta.pagada ? "Venta pagada" : "Registrar pago"}
+          <button className="btn btn-primary full" onClick={() => void handleRegistrarPago()} disabled={ocupado || venta.pagada}>
+            {ocupado ? "Procesando..." : "Registrar pago"}
           </button>
         </div>
       </div>
+      </>}
     </div>
   );
 }

@@ -4,6 +4,15 @@
   gap: 20px;
 }
 
+.venta-selector {
+  display: grid;
+  gap: 6px;
+  max-width: 680px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .ventas-header {
   display: flex;
   align-items: center;
@@ -34,13 +43,13 @@
 }
 
 .status.paid {
-  background: #eaf3ea;
-  color: #3f6b3f;
+  background: rgba(46, 122, 93, 0.15);
+  color: #2e7a5d;
 }
 
 .status.pending {
-  background: #fbeaec;
-  color: #a13340;
+  background: rgba(185, 28, 28, 0.1);
+  color: #b91c1c;
 }
 
 .ventas-layout {

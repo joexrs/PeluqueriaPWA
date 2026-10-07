@@ -1,29 +1,121 @@
-// ─── Enums que coinciden con los tipos USER-DEFINED de Supabase ───────────────
+// Tipos para las tablas de Citas segun schema.sql
+// Usamos un tipo permisivo para compatibilidad
 
-export type EstadoCita =
-  | "PENDIENTE"
-  | "CONFIRMADA"
-  | "EN_ATENCION"
-  | "COMPLETADA"
-  | "CANCELADA"
-  | "NO_SHOW";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Cita = Record<string, any>;
 
-export type OrigenCita =
-  | "PWA_RECEPCION"
-  | "WHATSAPP_BOT"
-  | "LLAMADA"
-  | "WEB_PUBLICA";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Cita_Servicio = Record<string, any>;
 
-// ─── Fila cruda de Supabase (tabla `citas`) ───────────────────────────────────
+export interface CitaConDetalle {
+  ID: string;
+  id: string;
+  cliente_id: string;
+  trabajador_id: string | null;
+  fecha_cita: string;
+  hora_inicio: string;
+  hora_fin: string;
+  Estado: boolean;
+  Cliente: {
+    ID: string;
+    Nombre: string;
+    Apellido: string;
+    Telefono: string;
+  } | null;
+  servicios: Array<{
+    servicio_id: string;
+    trabajador_id: string | null;
+    orden: number;
+    Cantidad: number;
+    precio_aplicado: number;
+    duracion_minutos: number;
+    Servicio: {
+      Nombre: string;
+      Precio: number;
+      Duracion_minutos: number;
+    } | null;
+    nombre?: string;
+  }>;
+  // Aliases de compatibilidad con la UI legacy
+  cliente?: {
+    id?: string;
+    nombre?: string;
+    apellido?: string | null;
+    telefono?: string | null;
+    Nombre?: string;
+    Apellido?: string | null;
+    Telefono?: string | null;
+  } | null;
+  trabajador?: {
+    id?: string;
+    nombre?: string;
+    apellido?: string | null;
+  } | null;
+  fecha?: string;
+  estado: EstadoCita;
+  codigo_cita: string;
+  monto_estimado: number;
+  notas: string | null;
+}
+
+export interface CrearCitaPayload {
+  cliente_id: string;
+  trabajador_id?: string | null;
+  fecha_cita?: string;
+  fecha?: string;
+  hora_inicio: string;
+  hora_fin: string;
+  estado?: EstadoCita | boolean;
+  Estado?: boolean;
+  origen?: OrigenCita;
+  notas?: string | null;
+  servicios: Array<{
+    servicio_id: string;
+    trabajador_id?: string | null;
+    orden?: number;
+    Cantidad?: number;
+    precio_aplicado?: number;
+    duracion_minutos?: number;
+  }>;
+}
+
+export interface FiltroCitas {
+  fecha?: string;
+  fechaDesde?: string;
+  fechaHasta?: string;
+  clienteId?: string;
+  trabajadorId?: string;
+  soloActivas?: boolean;
+}
+
+// ==================== TIPOS LEGACY PARA COMPATIBILIDAD ====================
+
+export type EstadoCita = "PENDIENTE" | "CONFIRMADA" | "EN_ATENCION" | "COMPLETADA" | "CANCELADA" | "NO_SHOW";
+export type OrigenCita = "PWA_RECEPCION" | "WHATSAPP_BOT" | "LLAMADA" | "WEB_PUBLICA";
+
+export type CategoriaCita = "hair" | "nails" | "skin";
+export type Especialista = "Todos" | "Elena" | "Carlos" | "Dra. Soto";
+
+export interface CitaAgenda {
+  id: string;
+  day: number;
+  title: string;
+  staff: Exclude<Especialista, "Todos">;
+  category: CategoriaCita;
+  time: string;
+  client: string;
+  top: number;
+  left: number;
+}
 
 export interface CitaRow {
   id: string;
   codigo_cita: string;
   cliente_id: string;
   trabajador_id: string | null;
-  fecha: string;          // "YYYY-MM-DD"
-  hora_inicio: string;    // "HH:MM:SS"
-  hora_fin: string;       // "HH:MM:SS"
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
   estado: EstadoCita;
   origen: OrigenCita;
   monto_estimado: number;
@@ -31,8 +123,6 @@ export interface CitaRow {
   created_at: string;
   updated_at: string;
 }
-
-// ─── Fila cruda de `detalle_citas_servicios` ──────────────────────────────────
 
 export interface DetalleCitaServicioRow {
   id: string;
@@ -42,37 +132,12 @@ export interface DetalleCitaServicioRow {
   duracion_minutos: number;
 }
 
-// ─── DTO enriquecido que el servicio devuelve al componente ───────────────────
-
-export interface CitaConDetalle extends CitaRow {
-  cliente?: {
-    id: string;
-    nombre: string;
-    apellido: string | null;
-    telefono: string;
-  };
-  trabajador?: {
-    id: string;
-    nombre: string;
-    apellido: string;
-    color_agenda: string;
-  } | null;
-  servicios: Array<{
-    servicio_id: string;
-    nombre: string;
-    precio_aplicado: number;
-    duracion_minutos: number;
-  }>;
-}
-
-// ─── Payload para crear / actualizar una cita ─────────────────────────────────
-
-export interface CrearCitaPayload {
+export interface CrearCitaPayloadLegacy {
   cliente_id: string;
   trabajador_id?: string | null;
-  fecha: string;          // "YYYY-MM-DD"
-  hora_inicio: string;    // "HH:MM"
-  hora_fin: string;       // "HH:MM"
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
   estado?: EstadoCita;
   origen?: OrigenCita;
   notas?: string | null;
@@ -96,30 +161,3 @@ export interface ActualizarCitaPayload {
     duracion_minutos: number;
   }>;
 }
-
-// ─── Filtros para la vista de agenda ─────────────────────────────────────────
-
-export interface FiltroCitas {
-  fecha?: string;          // "YYYY-MM-DD" — filtra por día exacto
-  fechaDesde?: string;     // rango desde
-  fechaHasta?: string;     // rango hasta
-  trabajadorId?: string;
-  estado?: EstadoCita;
-}
-
-// Compatibilidad mínima con la agenda legacy usada por CitasPage.tsx
-export type CategoriaCita = "hair" | "nails" | "skin";
-export type Especialista = "Todos" | "Elena" | "Carlos" | "Dra. Soto";
-
-export interface CitaAgenda {
-  id: string;
-  day: number;
-  title: string;
-  staff: Exclude<Especialista, "Todos">;
-  category: CategoriaCita;
-  time: string;
-  client: string;
-  top: number;
-  left: number;
-}
-
