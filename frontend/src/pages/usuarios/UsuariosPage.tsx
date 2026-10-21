@@ -409,14 +409,20 @@ export default function UsuariosPage() {
               </fieldset>
             )}
 
-            <label>
-              Color de agenda
-              <input
-                type="color"
-                value={form.color_agenda}
-                onChange={(e) => setForm((prev) => ({ ...prev, color_agenda: e.target.value }))}
-              />
-            </label>
+            {form.rol === "trabajador" && <label>
+              Color de agenda del trabajador
+              <span className="usuario-color-control">
+                <input
+                  type="color"
+                  value={form.color_agenda}
+                  onChange={(e) => setForm((prev) => ({ ...prev, color_agenda: e.target.value }))}
+                  aria-label="Color que identifica a este trabajador en la agenda"
+                />
+                <code>{form.color_agenda.toUpperCase()}</code>
+                <span className="usuario-color-preview" style={{ backgroundColor: form.color_agenda }} aria-hidden="true" />
+              </span>
+              <small>Este color identifica sus citas en el calendario.</small>
+            </label>}
 
             <label>
               Comisión (%)

@@ -213,6 +213,21 @@ export async function obtenerProductos(filtros: FiltroProductos = {}): Promise<P
   });
 }
 
+/** Catálogo mínimo para vender desde una cita; no consulta lotes de inventario. */
+export async function obtenerProductosParaCitas(): Promise<ProductoConLotes[]> {
+  const { data, error } = await supabase
+    .from("Producto")
+    .select("*")
+    .eq("Estado", true)
+    .order("Nombre");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    ...mapProducto(row as ProductoRaw),
+    lotes: [],
+    proximo_a_vencer: null,
+  }));
+}
+
 /**
  * Obtiene un producto por su ID
  */
@@ -333,126 +348,37 @@ export async function registrarEntrada(
 ): Promise<Lote> {
   const productoId = "Producto_id" in payload ? payload.Producto_id : payload.producto_id;
   const cantidad = "Cantidad" in payload ? payload.Cantidad : payload.cantidad;
-  const fechaVencimiento = "Fecha_vencimiento" in payload
-    ? payload.Fecha_vencimiento
-    : payload.fecha_caducidad;
-
-  if (!productoId || !cantidad || cantidad <= 0 || !fechaVencimiento) {
-    throw new Error("Producto, cantidad y fecha de caducidad son obligatorios para registrar la entrada.");
+  const fechaVencimiento = "Fecha_vencimiento" in payload ? payload.Fecha_vencimiento : payload.fecha_caducidad;
+  if (!productoId || !Number.isInteger(cantidad) || cantidad <= 0 || !fechaVencimiento) {
+    throw new Error("Producto, cantidad entera y fecha de vencimiento son obligatorios.");
   }
 
-  // 1. Crear el lote
-  const { data: loteData, error: loteError } = await supabase
-    .from("Lote")
-    .insert({
-      Fecha_vencimiento: fechaVencimiento,
-      Fecha_ingreso: new Date().toISOString().split("T")[0],
-      Cantidad: cantidad,
-      Producto_id: productoId,
-      Estado: true,
-    })
-    .select()
-    .single();
+  const { data: loteId, error } = await supabase.rpc("registrar_entrada_inventario", {
+    p_producto_id: Number(productoId),
+    p_cantidad: cantidad,
+    p_fecha_vencimiento: fechaVencimiento,
+  });
+  if (error) throw new Error(error.message);
 
+  const { data: lote, error: loteError } = await supabase.from("Lote").select("*").eq("ID", loteId).single();
   if (loteError) throw new Error(loteError.message);
-
-  // 2. Registrar movimiento de entrada
-  const { error: movError } = await supabase
-    .from("Movimientos")
-    .insert({
-      Cantidad: cantidad,
-      Tipo: "Entrada",
-      Lote_id: (loteData as { ID: number }).ID,
-      Producto_id: productoId,
-      Estado: true,
-    });
-
-  if (movError) {
-    await supabase.from("Lote").delete().eq("ID", (loteData as { ID: number }).ID);
-    throw new Error(movError.message);
-  }
-
-  // 3. Actualizar stock total del producto
-  const producto = await obtenerProductoPorId(productoId);
-  const { error: stockError } = await supabase
-    .from("Producto")
-    .update({ Stock_total: producto.Stock_total + cantidad })
-    .eq("ID", productoId);
-  if (stockError) throw new Error(stockError.message);
-
-  return mapLote(loteData as LoteRaw);
+  return mapLote(lote as LoteRaw);
 }
-
-/**
- * Registra una salida de inventario
- */
 export async function registrarSalida(
   payload: CrearMovimientoPayload | RegistrarSalidaPayload
 ): Promise<void> {
   const productoId = "Producto_id" in payload ? payload.Producto_id : payload.producto_id;
   const cantidad = "Cantidad" in payload ? payload.Cantidad : payload.cantidad;
-  if (!productoId || !cantidad || cantidad <= 0) {
-    throw new Error("Producto y cantidad válida son obligatorios para registrar la salida.");
+  if (!productoId || !Number.isInteger(cantidad) || cantidad <= 0) {
+    throw new Error("Producto y cantidad entera mayor que cero son obligatorios para registrar la salida.");
   }
 
-  // Obtener lotes disponibles del producto (ordenados por fecha de vencimiento)
-  const { data: lotes, error: loteError } = await supabase
-    .from("Lote")
-    .select("*")
-    .eq("Producto_id", productoId)
-    .eq("Estado", true)
-    .gt("Cantidad", 0)
-    .order("Fecha_vencimiento", { ascending: true });
-
-  if (loteError) throw new Error(loteError.message);
-  if (!lotes || lotes.length === 0) throw new Error("No hay stock disponible");
-
-  // Sacar del lote mas antiguo (FIFO)
-  const loteSolicitado = "lote_id" in payload ? payload.lote_id : undefined;
-  const loteDisponible = loteSolicitado
-    ? lotes.find((lote) => String((lote as { ID: number }).ID) === loteSolicitado)
-    : lotes[0];
-  if (!loteDisponible) throw new Error("El lote seleccionado no tiene stock disponible.");
-  const loteElegido = loteDisponible as { ID: number; Cantidad: number };
-
-  if (cantidad > loteElegido.Cantidad) {
-    throw new Error("La cantidad solicitada supera el stock disponible en el lote.");
-  }
-  const cantidadASacar = cantidad;
-
-  // Actualizar cantidad del lote
-  const { error: updateError } = await supabase
-    .from("Lote")
-    .update({ Cantidad: loteElegido.Cantidad - cantidadASacar })
-    .eq("ID", loteElegido.ID);
-
-  if (updateError) throw new Error(updateError.message);
-
-  // Registrar movimiento de salida
-  const { error: movError } = await supabase
-    .from("Movimientos")
-    .insert({
-      Cantidad: cantidadASacar,
-      Tipo: "Salida",
-      Lote_id: loteElegido.ID,
-      Producto_id: productoId,
-      Estado: true,
-    });
-
-  if (movError) throw new Error(movError.message);
-
-  // Actualizar stock total del producto
-  const producto = await obtenerProductoPorId(productoId);
-  const { error: stockError } = await supabase
-    .from("Producto")
-    .update({ Stock_total: producto.Stock_total - cantidadASacar })
-    .eq("ID", productoId);
-  if (stockError) throw new Error(stockError.message);
+  const { error } = await supabase.rpc("registrar_salida_inventario", {
+    p_producto_id: Number(productoId),
+    p_cantidad: cantidad,
+  });
+  if (error) throw new Error(error.message);
 }
-
-/**
- * Obtiene movimientos de inventario
- */
 export async function obtenerMovimientos(filtros: FiltroMovimientos = {}): Promise<Movimiento[]> {
   let query = supabase
     .from("Movimientos")

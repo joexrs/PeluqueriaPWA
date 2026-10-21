@@ -29,6 +29,7 @@ export interface VentaConDetalle extends Venta {
     cantidad: number;
     precio_unitario: number;
     subtotal: number;
+    descuento_porcentaje?: number;
     estado_detalle: "Pendiente" | "Pagado" | "Cancelado";
     Servicio?: { Nombre: string; Duracion_minutos?: number } | null;
     Producto?: { Nombre: string } | null;
@@ -66,10 +67,11 @@ export interface VentaCita {
   id: string;
   citaId: string;
   clienteNombre: string;
-  servicios: Array<{ id: string; nombre: string; precio: number; duracion: number }>;
+  servicios: Array<{ id: string; nombre: string; precio: number; duracion: number; descuentoPorcentaje?: number }>;
   productos: Array<{ id: string; nombre: string; cantidad: number; precioUnitario: number }>;
   metodoPago: MetodoPago | null;
   pagada: boolean;
+  estado: "Pendiente" | "Pagado" | "Cancelado";
   total: number;
   fecha: string;
 }

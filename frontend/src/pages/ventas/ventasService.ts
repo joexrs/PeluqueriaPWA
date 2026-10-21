@@ -35,6 +35,8 @@ interface Venta_DetalleRaw {
   Precio_Unitario: unknown;
   Subtotal: unknown;
   Estado_Detalle: unknown;
+  Promocion_ID: unknown;
+  Descuento_Porcentaje: unknown;
   Servicio: unknown;
   Producto: unknown;
 }
@@ -102,6 +104,7 @@ function mapVenta_Detalle(row: Venta_DetalleRaw): VentaConDetalle["detalles"][0]
     cantidad: Number(row.Cantidad ?? 1),
     precio_unitario: Number(row.Precio_Unitario ?? 0),
     subtotal: Number(row.Subtotal ?? 0),
+    descuento_porcentaje: Number(row.Descuento_Porcentaje ?? 0),
     estado_detalle: (row.Estado_Detalle as "Pendiente" | "Pagado" | "Cancelado") || "Pendiente",
     Servicio: serv
       ? {
@@ -116,7 +119,11 @@ function mapVenta_Detalle(row: Venta_DetalleRaw): VentaConDetalle["detalles"][0]
 /**
  * Obtiene ventas con filtros
  */
-export async function obtenerVentas(filtros: FiltroVentas = {}): Promise<VentaConDetalle[]> {
+export async function obtenerVentas(
+  filtros: FiltroVentas = {},
+  desde = 0,
+  limite = 100,
+): Promise<VentaConDetalle[]> {
   let query = supabase
     .from("Venta")
     .select(`
@@ -125,13 +132,14 @@ export async function obtenerVentas(filtros: FiltroVentas = {}): Promise<VentaCo
       Usuario:Usuario(ID, Nombre, Apellido),
       detalles:Venta_Detalle(
         ID, Venta_ID, Servicio_ID, Producto_ID, Cantidad,
-        Precio_Unitario, Subtotal, Estado_Detalle,
+        Precio_Unitario, Subtotal, Estado_Detalle, Promocion_ID, Descuento_Porcentaje,
         Servicio:Servicio(Nombre, Duracion_minutos),
         Producto:Producto(Nombre)
       )
     `)
     .order("Fecha_Venta", { ascending: false })
-    .limit(100);
+    .order("ID", { ascending: false })
+    .range(desde, desde + limite - 1);
 
   if (filtros.fechaDesde) {
     query = query.gte("Fecha_Venta", `${filtros.fechaDesde}T00:00:00`);
@@ -175,7 +183,7 @@ export async function obtenerVentaPorId(id: string): Promise<VentaConDetalle> {
       Usuario:Usuario(ID, Nombre, Apellido),
       detalles:Venta_Detalle(
         ID, Venta_ID, Servicio_ID, Producto_ID, Cantidad,
-        Precio_Unitario, Subtotal, Estado_Detalle,
+        Precio_Unitario, Subtotal, Estado_Detalle, Promocion_ID, Descuento_Porcentaje,
         Servicio:Servicio(Nombre, Duracion_minutos),
         Producto:Producto(Nombre)
       )
@@ -211,8 +219,9 @@ function toVentaCita(venta: VentaConDetalle): VentaCita {
       .map((detalle) => ({
         id: String(detalle.servicio_id),
         nombre: detalle.Servicio?.Nombre ?? "Servicio",
-        precio: detalle.subtotal,
+        precio: detalle.subtotal * (1 - (detalle.descuento_porcentaje ?? 0) / 100),
         duracion: detalle.Servicio?.Duracion_minutos ?? 0,
+        descuentoPorcentaje: detalle.descuento_porcentaje ?? 0,
       })),
     productos: venta.detalles
       .filter((detalle) => detalle.producto_id)
@@ -224,16 +233,15 @@ function toVentaCita(venta: VentaConDetalle): VentaCita {
       })),
     metodoPago: metodosPago.includes(metodoPago as MetodoPago) ? (metodoPago as MetodoPago) : null,
     pagada: venta.Estado_Venta === "Pagado",
+    estado: venta.Estado_Venta,
     total: Number(venta.Total ?? 0),
     fecha: String(venta.Fecha_Venta ?? ""),
   };
 }
 
-export async function obtenerVentasDeCitas(): Promise<VentaCita[]> {
-  const ventas = await obtenerVentas();
-  return ventas
-    .filter((venta) => venta.Cita_ID)
-    .map((venta) => toVentaCita(venta));
+export async function obtenerVentasListado(desde = 0, limite = 50): Promise<VentaCita[]> {
+  const ventas = await obtenerVentas({}, desde, limite);
+  return ventas.map((venta) => toVentaCita(venta));
 }
 
 /** Obtiene la venta asociada a una cita. */
@@ -242,63 +250,39 @@ export async function obtenerVentaPorCita(citaId: string): Promise<VentaCita | n
   return venta ? toVentaCita(venta) : null;
 }
 
-/** Añade un producto a la venta pendiente asociada a una cita. */
+/** Agrega un producto a una venta pendiente y descuenta el stock por lotes en el RPC. */
 export async function agregarProductoVenta(
-  citaId: string,
+  ventaId: string,
   productoId: string,
   cantidad: number,
 ): Promise<VentaCita> {
-  if (!Number.isInteger(cantidad) || cantidad < 1) {
-    throw new Error("La cantidad debe ser un entero mayor que cero.");
-  }
-
-  const venta = await obtenerVentaConDetallePorCita(citaId);
-  if (!venta) throw new Error("No existe una venta asociada a esta cita.");
+  if (!Number.isInteger(cantidad) || cantidad < 1) throw new Error("La cantidad debe ser un entero mayor que cero.");
+  const venta = await obtenerVentaPorId(ventaId);
   if (venta.Estado_Venta !== "Pendiente") throw new Error("Solo se pueden añadir productos a una venta pendiente.");
-
-  const { data: producto, error: productoError } = await supabase
-    .from("Producto")
-    .select("Precio")
-    .eq("ID", productoId)
-    .single();
-  if (productoError) throw new Error(productoError.message);
-
-  const { error } = await supabase.from("Venta_Detalle").insert({
-    Venta_ID: venta.ID,
-    Servicio_ID: null,
-    Producto_ID: productoId,
-    Cantidad: cantidad,
-    Precio_Unitario: Number(producto.Precio),
-    Estado_Detalle: "Pendiente",
+  const { error } = await supabase.rpc("agregar_producto_a_venta", {
+    p_venta_id: Number(ventaId), p_producto_id: Number(productoId), p_cantidad: cantidad,
   });
   if (error) throw new Error(error.message);
-
-  return toVentaCita(await obtenerVentaPorId(String(venta.ID)));
+  return toVentaCita(await obtenerVentaPorId(ventaId));
 }
 
-/** Registra el pago de la venta asociada a una cita. */
+/** Registra el pago por ID de venta, incluso si no pertenece a una cita. */
 export async function registrarPago(
-  citaId: string,
+  ventaId: string,
   metodoPago: MetodoPago,
   montoRecibido: number,
 ): Promise<VentaCita> {
-  const venta = await obtenerVentaConDetallePorCita(citaId);
-  if (!venta) throw new Error("No existe una venta asociada a esta cita.");
-  if (!Number.isFinite(montoRecibido) || montoRecibido < Number(venta.Total)) {
+  const pendiente = await obtenerVentaPorId(ventaId);
+  if (pendiente.Estado_Venta !== "Pendiente") throw new Error("La venta no está pendiente de pago.");
+  if (!Number.isFinite(montoRecibido) || montoRecibido < Number(pendiente.Total)) {
     throw new Error("El importe recibido no cubre el total de la venta.");
   }
-  if (venta.Estado_Venta !== "Pendiente") throw new Error("La venta no está pendiente de pago.");
-
-  await pagarVenta(String(venta.ID));
-  const { error } = await supabase
-    .from("Venta")
-    .update({ Metodo_Pago: metodoPago })
-    .eq("ID", venta.ID);
+  const { error } = await supabase.rpc("registrar_pago_venta", {
+    p_venta_id: Number(ventaId), p_metodo_pago: metodoPago, p_monto_recibido: montoRecibido,
+  });
   if (error) throw new Error(error.message);
-
-  return toVentaCita(await obtenerVentaPorId(String(venta.ID)));
+  return toVentaCita(await obtenerVentaPorId(ventaId));
 }
-
 async function obtenerVentaConDetallePorCita(citaId: string): Promise<VentaConDetalle | null> {
   const { data, error } = await supabase
     .from("Venta")
@@ -430,6 +414,16 @@ export async function obtenerPromociones(): Promise<Promocion[]> {
     Servicio_ID: row.Servicio_ID ? String(row.Servicio_ID) : null,
     Estado: row.Estado !== false,
   }));
+}
+
+/** Aplica una promoción válida en Supabase y devuelve la venta recalculada. */
+export async function aplicarPromocionVenta(ventaId: string, promocionId: string): Promise<VentaCita> {
+  const { error } = await supabase.rpc("aplicar_promocion_venta", {
+    p_venta_id: Number(ventaId),
+    p_promocion_id: Number(promocionId),
+  });
+  if (error) throw new Error(error.message);
+  return toVentaCita(await obtenerVentaPorId(ventaId));
 }
 
 /**

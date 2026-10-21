@@ -76,6 +76,28 @@ export async function obtenerUsuarios(soloActivos = true): Promise<Usuario[]> {
   return (data ?? []).map(mapUsuario);
 }
 
+/** Obtiene exclusivamente usuarios cuyo rol en Supabase es trabajador. */
+export async function obtenerUsuariosTrabajadores(soloActivos = true): Promise<Usuario[]> {
+  const { data: rol, error: rolError } = await supabase
+    .from("Rol")
+    .select("ID")
+    .eq("Nombre", "trabajador")
+    .eq("Estado", true)
+    .single();
+  if (rolError) throw new Error(rolError.message);
+
+  let query = supabase
+    .from("Usuario")
+    .select("ID, DNI, Nombre, Apellido, E_mail, Telefono, Usuario, Color_agenda, Comision_porcentaje, Rol_id, Estado, Created_at, Updated_at, Rol(ID, Nombre, Estado)")
+    .eq("Rol_id", rol.ID)
+    .order("Nombre");
+  if (soloActivos) query = query.eq("Estado", true);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapUsuario);
+}
+
 /**
  * Obtiene un usuario por su ID
  */

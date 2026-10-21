@@ -4,6 +4,33 @@
   gap: 20px;
 }
 
+.inventario-notificaciones {
+  display: grid;
+  gap: 8px;
+}
+
+.inventario-aviso {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.inventario-aviso--success { background: #eaf3ea; color: #285c35; }
+.inventario-aviso--warning { background: #fff6df; color: #765511; }
+.inventario-aviso--danger { background: #fbeaec; color: #8b2633; }
+
+.movement-note {
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--color-bg);
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .toolbar {
   display: flex;
   align-items: center;

@@ -16,13 +16,14 @@ import {
 import { es } from "date-fns/locale";
 import "./CitasPage.css";
 import { obtenerClientes, type ClienteRow } from "../clientes/clientesService";
-import { obtenerProductos } from "../productos/productosService";
+import { obtenerProductos, obtenerProductosParaCitas } from "../productos/productosService";
 import type { ProductoConLotes } from "../productos/types";
 import { obtenerServicios, type ServicioRow } from "../servicios/serviciosService";
-import { obtenerUsuarios, type UsuarioRow } from "../usuarios/usuariosService";
+import { obtenerUsuariosTrabajadores, type UsuarioRow } from "../usuarios/usuariosService";
 import { obtenerIdsTrabajadoresPorServicio } from "../trabajadores/trabajadoresService";
-import { agregarProductoVenta, crearVenta, obtenerVentaPorCita } from "../ventas/ventasService";
-import { actualizarCita, cambiarEstadoCita, crearCita, obtenerCitas } from "./citasService";
+import { obtenerVentaPorCita } from "../ventas/ventasService";
+import type { VentaCita } from "../ventas/types";
+import { consumirProductoEnCita, agregarServicioEnCita, cambiarEstadoCita, crearCita, obtenerCitaPorId, obtenerCitas } from "./citasService";
 import type { CitaConDetalle, CrearCitaPayload, EstadoCita } from "./types";
 import { validateTimeRange } from "../../lib/validators";
 import { useAuth } from "../../context/AuthContext";
@@ -76,9 +77,14 @@ const mensajeError = (err: unknown, defecto: string) => (err instanceof Error ? 
 const nombreCliente = (c: CitaConDetalle) =>
   c.cliente ? `${c.cliente.nombre} ${c.cliente.apellido ?? ""}`.trim() : "Cliente";
 const tituloCita = (c: CitaConDetalle) => c.servicios.map((s) => s.nombre).join(" + ") || "Sin servicios";
-const colorCita = (c: CitaConDetalle) => CATEGORIAS[categoriaDe(c)].color;
+const colorCita = (c: CitaConDetalle) => {
+  const colorTrabajador = c.servicios.find((servicio) => servicio.trabajador?.color_agenda)?.trabajador?.color_agenda;
+  return colorTrabajador && /^#[0-9a-f]{6}$/i.test(colorTrabajador)
+    ? colorTrabajador
+    : CATEGORIAS[categoriaDe(c)].color;
+};
 const nombreTrabajador = (c: CitaConDetalle) =>
-  c.trabajador ? `${c.trabajador.nombre} ${c.trabajador.apellido}`.trim() : "Sin asignar";
+  c.trabajador ? `${c.trabajador.nombre ?? ""} ${c.trabajador.apellido ?? ""}`.trim() || "Sin asignar" : "Sin asignar";
 
 function useEsEscritorio() {
   const consulta = "(min-width: 960px)";
@@ -410,7 +416,7 @@ function Filtros({
   servicioId?: string;
   onServicio?: (id: string) => void;
 }) {
-  const opciones = [{ id: "", nombre: "Todos", apellido: "" }, ...trabajadores];
+  const opciones = [{ id: "", nombre: "Todos", apellido: "", color_agenda: null }, ...trabajadores];
   return (
     <div className="ag-filtros">
       {!soloCategorias && <div className="ag-filtro">
@@ -418,6 +424,7 @@ function Filtros({
         {opciones.map((t) => (
           <label key={t.id || "todos"} className={`ag-opcion${trabajadorId === t.id ? " ag-opcion--activa" : ""}`}>
             <input type="radio" name="ag-especialista" checked={trabajadorId === t.id} onChange={() => onTrabajador(t.id)} />
+            {t.color_agenda && <i className="ag-opcion__color" style={{ backgroundColor: t.color_agenda }} aria-hidden="true" />}
             {`${t.nombre} ${t.apellido}`.trim()}
           </label>
         ))}
@@ -440,7 +447,7 @@ function Filtros({
         </div>
       </div>
 
-      {soloCategorias && servicios && onServicio && (
+      {servicios && onServicio && (
         <label className="ag-filtro">
           <h4>Servicio</h4>
           <select value={servicioId ?? ""} onChange={(e) => onServicio(e.target.value)}>
@@ -691,7 +698,10 @@ function DetalleCita({
   onActualizada,
   onError,
   onAviso,
-  soloLectura = false,
+  onProductosActualizados,
+  esTrabajador = false,
+  puedeReabrir = false,
+  actorId,
 }: {
   cita: CitaConDetalle;
   servicios: ServicioRow[];
@@ -699,12 +709,28 @@ function DetalleCita({
   onActualizada: (c: CitaConDetalle) => void;
   onError: (m: string) => void;
   onAviso: (m: string) => void;
-  soloLectura?: boolean;
+  onProductosActualizados: () => Promise<void>;
+  esTrabajador?: boolean;
+  puedeReabrir?: boolean;
+  actorId: string;
 }) {
   const [extraId, setExtraId] = useState("");
   const [productoId, setProductoId] = useState("");
   const [cantidad, setCantidad] = useState(1);
   const [ocupado, setOcupado] = useState(false);
+  const [venta, setVenta] = useState<VentaCita | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    obtenerVentaPorCita(cita.id)
+      .then((data) => { if (!cancelado) setVenta(data); })
+      .catch(() => { if (!cancelado) setVenta(null); });
+    return () => { cancelado = true; };
+  }, [cita.id]);
+
+  async function actualizarVentaDeCita() {
+    setVenta(await obtenerVentaPorCita(cita.id));
+  }
 
   async function ejecutar(accion: () => Promise<void>, ok: string, fallo: string) {
     try {
@@ -728,10 +754,12 @@ function DetalleCita({
     }
     void ejecutar(
       async () => {
-        await cambiarEstadoCita(cita.id, estado !== "CANCELADA" && estado !== "NO_SHOW");
-        onActualizada({ ...cita, estado });
+        await cambiarEstadoCita(cita.id, estado);
+        const actualizada = await obtenerCitaPorId(cita.id);
+        onActualizada(actualizada);
+        await actualizarVentaDeCita();
       },
-      "Estado actualizado",
+      estado === "COMPLETADA" ? "Cita completada; cuenta pendiente lista para cobrar" : "Estado actualizado",
       "No se pudo cambiar el estado.",
     );
   }
@@ -749,81 +777,46 @@ function DetalleCita({
     void ejecutar(
       async () => {
         const trabajadoresDisponibles = await obtenerIdsTrabajadoresPorServicio(servicioId);
-        if (!trabajadoresDisponibles.includes(trabajadorId)) {
+        const asignado = esTrabajador ? actorId : trabajadorId;
+        if (!asignado || !trabajadoresDisponibles.includes(asignado)) {
           throw new Error("El trabajador asignado no está habilitado para este servicio.");
         }
-        const nueva = await actualizarCita(cita.id, {
-          servicios: [
-            ...cita.servicios.map(({ servicio_id, trabajador_id, precio_aplicado, duracion_minutos }) => ({
-              servicio_id: String(servicio_id ?? ""),
-              trabajador_id,
-              precio_aplicado,
-              duracion_minutos,
-            })),
-            {
-              servicio_id: servicioId,
-              trabajador_id: trabajadorId,
-              precio_aplicado: Number(servicio.precio_base ?? servicio.Precio ?? 0),
-              duracion_minutos: Number(servicio.duracion_minutos ?? servicio.Duracion_minutos ?? 0),
-            },
-          ],
-        });
+        const nueva = await agregarServicioEnCita(cita.id, servicioId, asignado);
         onActualizada(nueva);
+        await actualizarVentaDeCita();
         setExtraId("");
       },
-      "Servicio añadido",
+      "Servicio añadido y horario actualizado",
       "No se pudo añadir el servicio.",
     );
   }
 
-  function agregarProducto() {
+  function registrarConsumoProducto() {
     const producto = productos.find((p) => p.id === productoId);
     if (!producto) return;
-    const precio = Number(producto.precio_venta_publico ?? 0);
-    const total = precio * cantidad;
-
-    if (
-      !window.confirm(
-        `Se añadirá ${cantidad} × ${producto.nombre} a la cuenta pendiente de esta cita. Importe del producto: ${soles(total)}. ¿Continuar?`,
-      )
-    ) {
-      return;
-    }
-
+    if (!window.confirm(`Se descontaran ${cantidad} unidad(es) de ${producto.nombre} del inventario como consumo de esta atencion. No se agregara a la venta. ¿Continuar?`)) return;
     void ejecutar(
       async () => {
-        const ventaExistente = await obtenerVentaPorCita(cita.id);
-        if (ventaExistente) {
-          await agregarProductoVenta(cita.id, producto.id, cantidad);
-        } else {
-          await crearVenta({
-            Cliente_ID: cita.cliente_id,
-            Usuario_ID: cita.trabajador_id ?? "",
-            Cita_ID: cita.id,
-            Metodo_Pago: null,
-            servicios: cita.servicios.map((s) => ({
-              Servicio_ID: s.servicio_id,
-              Cantidad: 1,
-              Precio_Unitario: s.precio_aplicado,
-            })),
-            productos: [
-              {
-                Producto_ID: producto.id,
-                Cantidad: cantidad,
-                Precio_Unitario: precio,
-              },
-            ],
-          });
-        }
+        await consumirProductoEnCita(cita.id, producto.id, cantidad);
+        await onProductosActualizados();
         setProductoId("");
         setCantidad(1);
       },
-      "Venta registrada",
-      "No se pudo registrar la venta.",
+      "Consumo registrado y descontado del inventario",
+      "No se pudo registrar el consumo del producto.",
     );
   }
-
   const fecha = parseISO(cita.fecha_cita ?? cita.fecha ?? new Date().toISOString().slice(0, 10));
+  const gestor = !esTrabajador;
+  const estadosSiguientes: EstadoCita[] = esTrabajador
+    ? (cita.estado === "CONFIRMADA" ? ["EN_ATENCION"] : cita.estado === "EN_ATENCION" ? ["COMPLETADA"] : [])
+    : cita.estado === "PENDIENTE" ? ["CONFIRMADA", "CANCELADA", "NO_SHOW"]
+      : cita.estado === "CONFIRMADA" ? ["EN_ATENCION", "CANCELADA", "NO_SHOW"]
+        : cita.estado === "EN_ATENCION" ? ["COMPLETADA"]
+          : (puedeReabrir && (cita.estado === "CANCELADA" || cita.estado === "NO_SHOW")) ? ["PENDIENTE"] : [];
+  const puedeAnadirServicio = (gestor && ["PENDIENTE", "CONFIRMADA", "EN_ATENCION"].includes(cita.estado)) ||
+    (esTrabajador && cita.estado === "EN_ATENCION");
+  const puedeConsumirProducto = cita.estado === "EN_ATENCION";
 
   return (
     <div className="ag-detalle" style={{ "--c": colorCita(cita) } as CSSProperties}>
@@ -866,10 +859,10 @@ function DetalleCita({
           {cita.servicios.map((s, i) => (
             <li key={`${s.servicio_id}-${i}`}>
               <span>
-                {s.nombre}
+                {s.Cantidad > 1 ? `${s.Cantidad} × ` : ""}{s.nombre}
                 <small> · {s.duracion_minutos} min</small>
               </span>
-              <strong>{soles(s.precio_aplicado)}</strong>
+              <strong>{soles(s.precio_aplicado * s.Cantidad)}</strong>
             </li>
           ))}
           <li className="ag-servicios__total">
@@ -880,10 +873,10 @@ function DetalleCita({
         {cita.notas && <p className="ag-notas">{cita.notas}</p>}
       </div>
 
-      {!soloLectura && <div className="ag-bloque">
+      {estadosSiguientes.length > 0 && <div className="ag-bloque">
         <h4>Estado de la cita</h4>
         <div className="ag-estados">
-          {(["PENDIENTE", "CANCELADA"] as EstadoCita[]).map((e) => (
+          {estadosSiguientes.map((e) => (
             <button
               key={e}
               type="button"
@@ -897,7 +890,19 @@ function DetalleCita({
         </div>
       </div>}
 
-      {!soloLectura && <div className="ag-bloque">
+      {venta && <div className="ag-bloque">
+        <h4>Cuenta de la cita</h4>
+        <ul className="ag-servicios">
+          {venta.servicios.map((s, i) => <li key={`vs-${s.id}-${i}`}><span>{s.nombre}</span><strong>{soles(s.precio)}</strong></li>)}
+          {venta.productos.map((p, i) => <li key={`vp-${p.id}-${i}`}><span>{p.cantidad} × {p.nombre}</span><strong>{soles(p.cantidad * p.precioUnitario)}</strong></li>)}
+          <li className="ag-servicios__total"><span>{venta.pagada ? "Total pagado" : "Total pendiente"}</span><strong>{soles(venta.total)}</strong></li>
+        </ul>
+        {gestor && !venta.pagada && (
+          <a className="ag-btn" href={`/ventas?cita_id=${encodeURIComponent(cita.id)}`}>Ir a cobrar</a>
+        )}
+      </div>}
+
+      {puedeAnadirServicio && <div className="ag-bloque">
         <h4>Añadir servicio</h4>
         <div className="ag-fila-accion">
           <select value={extraId} onChange={(e) => setExtraId(e.target.value)} aria-label="Servicio adicional">
@@ -914,14 +919,15 @@ function DetalleCita({
         </div>
       </div>}
 
-      {!soloLectura && <div className="ag-bloque">
-        <h4>Vender producto</h4>
-        <div className="ag-fila-accion">
+      {puedeConsumirProducto && <div className="ag-bloque">
+        <h4>Productos usados en el servicio</h4>
+        <p className="ag-ayuda">Se descuentan del inventario y no se agregan a la cuenta de la cita.</p>
+        <div className="ag-fila-accion ag-fila-accion--producto">
           <select value={productoId} onChange={(e) => setProductoId(e.target.value)} aria-label="Producto">
-            <option value="">Selecciona un producto</option>
-            {productos.map((p) => (
+            <option value="">Selecciona un producto para consumo</option>
+            {productos.filter((p) => p.stock_total > 0).map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nombre}
+                {p.nombre} (stock: {p.stock_total})
               </option>
             ))}
           </select>
@@ -933,8 +939,8 @@ function DetalleCita({
             aria-label="Cantidad"
             className="ag-cantidad"
           />
-          <button type="button" className="ag-btn" onClick={agregarProducto} disabled={!productoId || ocupado}>
-            Vender
+          <button type="button" className="ag-btn" onClick={registrarConsumoProducto} disabled={!productoId || ocupado}>
+            Añadir producto
           </button>
         </div>
       </div>}
@@ -1028,7 +1034,12 @@ export default function CitasPage() {
   // Catálogos: una sola vez.
   useEffect(() => {
     let cancelado = false;
-    Promise.all([esTrabajador ? Promise.resolve([]) : obtenerClientes(), obtenerServicios(), esTrabajador ? Promise.resolve([]) : obtenerUsuarios(true), esTrabajador ? Promise.resolve([]) : obtenerProductos({ soloActivos: true })])
+    Promise.all([
+      esTrabajador ? Promise.resolve([]) : obtenerClientes(),
+      obtenerServicios(),
+      esTrabajador ? Promise.resolve([]) : obtenerUsuariosTrabajadores(true),
+      esTrabajador ? obtenerProductosParaCitas() : obtenerProductos({ soloActivos: true }),
+    ])
       .then(([c, s, u, p]) => {
         if (cancelado) return;
         setClientes(c);
@@ -1042,6 +1053,13 @@ export default function CitasPage() {
     };
   }, [esTrabajador]);
 
+  async function actualizarCatalogoProductos() {
+    const actualizados = esTrabajador
+      ? await obtenerProductosParaCitas()
+      : await obtenerProductos({ soloActivos: true });
+    setProductos(actualizados);
+  }
+
   // Citas: cada vez que cambia el mes visible, el filtro o se fuerza una recarga.
   useEffect(() => {
     let cancelado = false;
@@ -1050,7 +1068,7 @@ export default function CitasPage() {
       return () => { cancelado = true; };
     }
     setCargando(true);
-    obtenerCitas({ fechaDesde: desde, fechaHasta: hasta, trabajadorId: (esTrabajador ? String(profile?.ID ?? "") : trabajadorFiltro) || undefined })
+    obtenerCitas({ fechaDesde: desde, fechaHasta: hasta, trabajadorId: (esTrabajador ? String(profile?.ID ?? "") : trabajadorFiltro) || undefined, soloActivas: false })
       .then((data) => {
         if (cancelado) return;
         setCitas(data);
@@ -1121,7 +1139,7 @@ export default function CitasPage() {
       mostrarCanceladas={mostrarCanceladas}
       onCanceladas={setMostrarCanceladas}
       soloCategorias={esTrabajador}
-      servicios={esTrabajador ? servicios : undefined}
+      servicios={servicios}
       servicioId={servicioFiltro}
       onServicio={setServicioFiltro}
     />
@@ -1223,10 +1241,13 @@ export default function CitasPage() {
           cita={seleccionada}
           servicios={servicios}
           productos={productos}
-          soloLectura={esTrabajador}
+          esTrabajador={esTrabajador}
+          puedeReabrir={role === "admin" || role === "jefe"}
+          actorId={String(profile?.ID ?? "")}
           onActualizada={reemplazarCita}
           onError={setError}
           onAviso={setAviso}
+          onProductosActualizados={actualizarCatalogoProductos}
         />
       </Panel>
     ) : null;
@@ -1352,9 +1373,9 @@ export default function CitasPage() {
 
       {avisos}
 
-      {!esTrabajador && !mesAbierto && (
+      {!mesAbierto && (
         <div className="ag-contenido">
-          {!mesAbierto && (
+          {!esTrabajador && (
             <div className="ag-filtros-celular">
               <button
                 type="button"
@@ -1383,7 +1404,7 @@ export default function CitasPage() {
         </div>
       )}
 
-      {!mesAbierto && (
+      {!esTrabajador && !mesAbierto && (
         <button type="button" className="ag-fab" onClick={nuevaCita} aria-label="Nueva cita">
           +
         </button>

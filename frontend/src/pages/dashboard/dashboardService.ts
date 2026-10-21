@@ -34,7 +34,8 @@ async function fetchKpis() {
         .from("Cita")
         .select("ID", { count: "exact", head: true })
         .eq("fecha_cita", fechaHoy)
-        .eq("Estado", true),
+        .neq("Estado_Cita", "CANCELADA")
+        .neq("Estado_Cita", "NO_SHOW"),
 
       supabase
         .from("Venta")
@@ -50,7 +51,7 @@ async function fetchKpis() {
       supabase
         .from("Cita")
         .select("ID", { count: "exact", head: true })
-        .eq("Estado", true),
+        .eq("Estado_Cita", "PENDIENTE"),
     ]);
 
   if (citasHoyRes.error) throw new Error(citasHoyRes.error.message);
@@ -84,7 +85,7 @@ async function fetchProximasCitas(): Promise<ProximaCita[]> {
     .select(`
       ID,
       hora_inicio,
-      Estado,
+      Estado_Cita,
       Cliente:Cliente!FK_Cita_Cliente ( Nombre, Apellido ),
       servicios:Cita_Servicio!FK_CitaServ_Cita (
         Servicio:Servicio!FK_CitaServ_Servicio ( Nombre ),
@@ -94,7 +95,8 @@ async function fetchProximasCitas(): Promise<ProximaCita[]> {
       )
     `)
     .eq("fecha_cita", fechaHoy)
-    .eq("Estado", true)
+    .neq("Estado_Cita", "CANCELADA")
+    .neq("Estado_Cita", "NO_SHOW")
     .order("hora_inicio", { ascending: true })
     .limit(8);
 
@@ -131,7 +133,7 @@ async function fetchProximasCitas(): Promise<ProximaCita[]> {
       trabajador_apellido: trabajador?.Apellido ?? null,
       trabajador_color: trabajador?.Color_agenda ?? null,
       servicios_resumen: serviciosResumen,
-      estado: row.Estado === true ? "PENDIENTE" : "CANCELADA",
+      estado: String(row.Estado_Cita ?? "PENDIENTE"),
     };
   });
 }

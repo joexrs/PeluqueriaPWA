@@ -12,10 +12,6 @@ export default function MovimientoForm({ productos, productoInicialId, onSubmit,
   const [productoId, setProductoId] = useState(
     productoInicialId ?? productos[0]?.id ?? "",
   );
-  const [loteId, setLoteId] = useState(() => {
-    const producto = productos.find((item) => item.id === (productoInicialId ?? productos[0]?.id));
-    return producto?.lotes.find((lote) => Number(lote.Cantidad) > 0)?.id ?? "";
-  });
   const [tipo, setTipo] = useState<"ENTRADA_COMPRA" | "SALIDA_USO_SERVICIO">("ENTRADA_COMPRA");
   const [cantidad, setCantidad] = useState("");
   const [fechaCaducidad, setFechaCaducidad] = useState("");
@@ -26,7 +22,8 @@ export default function MovimientoForm({ productos, productoInicialId, onSubmit,
     () => productos.find((p) => p.id === productoId) ?? null,
     [productos, productoId]
   );
-  const loteSeleccionado = productoSeleccionado?.lotes.find((lote) => lote.id === loteId) ?? null;
+  const hoy = new Date();
+  const fechaMinima = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -36,8 +33,8 @@ export default function MovimientoForm({ productos, productoInicialId, onSubmit,
       setError("Selecciona un producto.");
       return;
     }
-    if (!cantidadNum || cantidadNum <= 0) {
-      setError("Ingresa una cantidad válida mayor que 0.");
+    if (!Number.isInteger(cantidadNum) || cantidadNum <= 0) {
+      setError("Ingresa una cantidad entera mayor que 0.");
       return;
     }
 
@@ -46,15 +43,9 @@ export default function MovimientoForm({ productos, productoInicialId, onSubmit,
         setError("Indica la fecha de caducidad del lote.");
         return;
       }
-    } else {
-      if (!loteSeleccionado || Number(loteSeleccionado.Cantidad) <= 0) {
-        setError("Selecciona un lote que tenga existencias.");
-        return;
-      }
-      if (cantidadNum > Number(loteSeleccionado.Cantidad)) {
-        setError("La cantidad supera las existencias del lote seleccionado.");
-        return;
-      }
+    } else if (cantidadNum > Number(productoSeleccionado?.stock_total ?? 0)) {
+      setError("La cantidad supera el stock disponible del producto.");
+      return;
     }
 
     try {
@@ -70,7 +61,6 @@ export default function MovimientoForm({ productos, productoInicialId, onSubmit,
         await onSubmit({
           producto_id: productoId,
           cantidad: cantidadNum,
-          lote_id: loteId,
         });
       }
     } catch (err) {
@@ -93,9 +83,7 @@ export default function MovimientoForm({ productos, productoInicialId, onSubmit,
           value={productoId}
           onChange={(e) => {
             const id = e.target.value;
-            const producto = productos.find((item) => item.id === id);
             setProductoId(id);
-            setLoteId(producto?.lotes.find((lote) => Number(lote.Cantidad) > 0)?.id ?? "");
           }}
         >
           {productos.map((p) => (
@@ -116,23 +104,9 @@ export default function MovimientoForm({ productos, productoInicialId, onSubmit,
       </div>
 
       {tipo === "SALIDA_USO_SERVICIO" && (
-        <label>
-          Lote
-          <select
-            value={loteId}
-            onChange={(e) => setLoteId(e.target.value)}
-            required
-          >
-            <option value="">Selecciona un lote</option>
-            {productoSeleccionado?.lotes
-              .filter((lote) => Number(lote.Cantidad) > 0)
-              .map((lote) => (
-                <option key={lote.id} value={lote.id}>
-                  Vence {lote.Fecha_vencimiento} · {lote.Cantidad} disponibles
-                </option>
-              ))}
-          </select>
-        </label>
+        <div className="movement-note" role="status">
+          La salida descontara primero los lotes con vencimiento mas proximo. Los lotes vencidos solo se incluyen en una salida manual.
+        </div>
       )}
 
       <label>
@@ -140,7 +114,7 @@ export default function MovimientoForm({ productos, productoInicialId, onSubmit,
         <input
           type="number"
           min={1}
-          max={tipo === "SALIDA_USO_SERVICIO" ? Number(loteSeleccionado?.Cantidad ?? 0) : undefined}
+          max={tipo === "SALIDA_USO_SERVICIO" ? Number(productoSeleccionado?.stock_total ?? 0) : undefined}
           value={cantidad}
           onChange={(e) => setCantidad(e.target.value)}
           placeholder="Ej. 5"
@@ -151,7 +125,7 @@ export default function MovimientoForm({ productos, productoInicialId, onSubmit,
         <>
           <label>
             Fecha de caducidad *
-            <input type="date" min={new Date().toISOString().slice(0, 10)} value={fechaCaducidad} onChange={(e) => setFechaCaducidad(e.target.value)} required />
+            <input type="date" min={fechaMinima} value={fechaCaducidad} onChange={(e) => setFechaCaducidad(e.target.value)} required />
           </label>
         </>
       )}

@@ -2,9 +2,10 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
 }
 
-.toolbar {
+.servicios-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -12,13 +13,14 @@
   gap: 12px;
 }
 
-.toolbar input[type="text"] {
+.servicios-toolbar input[type="text"] {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 9px 12px;
   font-family: var(--font-body);
   font-size: 14px;
   min-width: 240px;
+  box-sizing: border-box;
   background: var(--color-surface);
   color: var(--color-ink);
 }
@@ -82,6 +84,7 @@
 .tabla-servicios {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .tabla-servicios th,
@@ -90,7 +93,13 @@
   padding: 12px 14px;
   font-size: 14px;
   border-bottom: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
 }
+
+.tabla-servicios th:first-child,
+.tabla-servicios td:first-child { width: 25%; }
+.tabla-servicios th:last-child,
+.tabla-servicios td:last-child { width: 25%; }
 
 .tabla-servicios th {
   background: var(--color-bg);
@@ -122,6 +131,7 @@
   gap: 16px;
   max-width: 760px;
   padding: 24px;
+  box-sizing: border-box;
   align-self: start;
   width: 100%;
 }
@@ -145,6 +155,7 @@
 .servicio-form select,
 .servicio-form textarea {
   width: 100%;
+  min-width: 0;
   min-height: 42px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -153,6 +164,7 @@
   color: var(--color-ink);
   font-family: var(--font-body);
   font-size: 14px;
+  box-sizing: border-box;
 }
 
 .servicio-form textarea {
@@ -185,6 +197,15 @@
   margin-bottom: 8px;
 }
 
+.servicios-page .detalle-card .info-row {
+  gap: 16px;
+}
+
+.servicios-page .detalle-card .info-row span:last-child {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 .banner-error {
   background: #fbeaec;
   color: #a13340;
@@ -194,12 +215,106 @@
 }
 
 @media (max-width: 900px) {
-  .servicios-layout {
-    grid-template-columns: 1fr;
+  .servicio-form {
+    max-width: none;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 700px) {
+  .servicios-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .servicios-toolbar input[type="text"] {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .servicios-toolbar .btn {
+    width: 100%;
+  }
+
+  .tabla-servicios,
+  .tabla-servicios tbody,
+  .tabla-servicios tr,
+  .tabla-servicios td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .tabla-servicios {
+    border: 0;
+    table-layout: auto;
+  }
+
+  .tabla-servicios thead {
+    display: none;
+  }
+
+  .tabla-servicios tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .tabla-servicios tr {
+    padding: 10px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    background: var(--color-surface);
+  }
+
+  .tabla-servicios td {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--color-border);
+    text-align: right;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  .tabla-servicios td::before {
+    content: attr(data-label);
+    flex: 0 0 76px;
+    color: var(--color-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
+  .tabla-servicios td[data-label="Acciones"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    border-bottom: 0;
+  }
+
+  .tabla-servicios td[data-label="Acciones"]::before {
+    display: block;
+  }
+
+  .tabla-servicios .acciones-cell {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .tabla-servicios .acciones-cell .btn {
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
   .servicio-form {
     grid-template-columns: 1fr;
     padding: 18px;
@@ -209,5 +324,27 @@
   .servicio-form > .banner-error,
   .servicio-form > .form-actions {
     grid-column: auto;
+  }
+
+  .servicios-page .detalle-card {
+    padding: 16px;
+  }
+
+  .servicios-page .detalle-card .info-row {
+    align-items: flex-start;
+    font-size: 13px;
+  }
+
+  .servicios-page .detalle-card .form-actions {
+    flex-direction: column;
+  }
+
+  .servicios-page .detalle-card .form-actions .btn,
+  .servicio-form .form-actions .btn {
+    width: 100%;
+  }
+
+  .servicio-form .form-actions {
+    flex-direction: column-reverse;
   }
 }

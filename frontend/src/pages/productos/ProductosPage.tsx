@@ -14,6 +14,45 @@ import "./productos.css";
 
 type Vista = "lista" | "detalle" | "crear" | "movimiento";
 
+function fechaLocalISO(fecha: Date): string {
+  const year = fecha.getFullYear();
+  const month = String(fecha.getMonth() + 1).padStart(2, "0");
+  const day = String(fecha.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function AvisosInventario({ productos, aviso }: { productos: ProductoConLotes[]; aviso: string | null }) {
+  const hoy = fechaLocalISO(new Date());
+  const fechaLimite = new Date();
+  fechaLimite.setDate(fechaLimite.getDate() + 30);
+  const hasta = fechaLocalISO(fechaLimite);
+  const vencidos = productos.flatMap((producto) => producto.lotes
+    .filter((lote) => Number(lote.Cantidad) > 0 && lote.Fecha_vencimiento < hoy)
+    .map((lote) => ({ producto: producto.nombre, fecha: lote.Fecha_vencimiento, cantidad: Number(lote.Cantidad) })));
+  const porVencer = productos.flatMap((producto) => producto.lotes
+    .filter((lote) => Number(lote.Cantidad) > 0 && lote.Fecha_vencimiento >= hoy && lote.Fecha_vencimiento <= hasta)
+    .map((lote) => ({ producto: producto.nombre, fecha: lote.Fecha_vencimiento, cantidad: Number(lote.Cantidad) })));
+  const sinStock = productos.filter((producto) => producto.stock_total <= 0);
+
+  return (
+    <section className="inventario-notificaciones" aria-label="Avisos de inventario">
+      {aviso && <div className="inventario-aviso inventario-aviso--success" role="status">{aviso}</div>}
+      {vencidos.length > 0 && <div className="inventario-aviso inventario-aviso--danger" role="status">
+        <strong>{vencidos.length} lote(s) vencido(s) con existencias.</strong>
+        <span>{vencidos.slice(0, 3).map((item) => `${item.producto} (${item.cantidad})`).join(" · ")}</span>
+      </div>}
+      {porVencer.length > 0 && <div className="inventario-aviso inventario-aviso--warning" role="status">
+        <strong>{porVencer.length} lote(s) vencen en los próximos 30 días.</strong>
+        <span>{porVencer.slice(0, 3).map((item) => `${item.producto}: ${item.fecha}`).join(" · ")}</span>
+      </div>}
+      {sinStock.length > 0 && <div className="inventario-aviso inventario-aviso--warning" role="status">
+        <strong>{sinStock.length} producto(s) sin existencias.</strong>
+        <span>{sinStock.slice(0, 4).map((producto) => producto.nombre).join(" · ")}</span>
+      </div>}
+    </section>
+  );
+}
+
 export default function ProductosPage() {
   const [productos, setProductos] = useState<ProductoConLotes[]>([]);
   const [categorias, setCategorias] = useState<CategoriaProductoRow[]>([]);
@@ -22,6 +61,7 @@ export default function ProductosPage() {
   const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +122,8 @@ export default function ProductosPage() {
   }
 
   async function handleMovimientoSubmit(data: RegistrarEntradaPayload | RegistrarSalidaPayload) {
-    if ("fecha_caducidad" in data) {
+    const esEntrada = "fecha_caducidad" in data;
+    if (esEntrada) {
       await registrarEntrada({
         producto_id: data.producto_id,
         cantidad: data.cantidad,
@@ -92,11 +133,14 @@ export default function ProductosPage() {
       await registrarSalida({
         producto_id: data.producto_id,
         cantidad: data.cantidad,
-        lote_id: data.lote_id,
       });
     }
 
     await recargarProductos();
+    setAviso(esEntrada
+      ? "Entrada registrada: se creó un lote y se actualizó el stock."
+      : "Salida registrada: se descontaron primero los lotes con vencimiento más próximo.");
+    setError(null);
     setVista("detalle");
   }
 
@@ -136,6 +180,8 @@ export default function ProductosPage() {
             + Nuevo producto
           </button>
         </div>
+
+        <AvisosInventario productos={productos} aviso={aviso} />
 
         {error && <div className="banner-error">{error}</div>}
 
@@ -196,6 +242,9 @@ export default function ProductosPage() {
         <p className="sub">
           {productoDetalle.marca} · {productoDetalle.categoria?.nombre ?? "Sin categoría"}
         </p>
+
+        <AvisosInventario productos={productos} aviso={aviso} />
+        {error && <div className="banner-error">{error}</div>}
 
         <div className="detalle-grid">
           <div className="detalle-card">

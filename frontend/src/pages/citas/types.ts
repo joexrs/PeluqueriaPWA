@@ -29,6 +29,12 @@ export interface CitaConDetalle {
     Cantidad: number;
     precio_aplicado: number;
     duracion_minutos: number;
+    trabajador: {
+      id: string;
+      nombre: string;
+      apellido: string;
+      color_agenda?: string | null;
+    } | null;
     Servicio: {
       Nombre: string;
       Precio: number;
@@ -50,6 +56,7 @@ export interface CitaConDetalle {
     id?: string;
     nombre?: string;
     apellido?: string | null;
+    color_agenda?: string | null;
   } | null;
   fecha?: string;
   estado: EstadoCita;
