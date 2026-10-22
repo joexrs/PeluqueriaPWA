@@ -7,6 +7,7 @@ import type {
   CitaConDetalle,
   CrearCitaPayload,
   FiltroCitas,
+  EstadoCita,
 } from "./types";
 
 // Interfaces Raw de Supabase
@@ -25,6 +26,7 @@ interface Cita_ServicioRaw {
   orden: unknown;
   Cantidad: unknown;
   Servicio: unknown;
+  Trabajador: unknown;
 }
 
 interface ServicioRaw {
@@ -32,6 +34,15 @@ interface ServicioRaw {
   Nombre: unknown;
   Precio: unknown;
   Duracion_minutos: unknown;
+}
+
+const ESTADOS_CITA: EstadoCita[] = ["PENDIENTE", "CONFIRMADA", "EN_ATENCION", "COMPLETADA", "CANCELADA", "NO_SHOW"];
+
+/** Lee el estado nuevo y conserva lectura compatible con filas antiguas. */
+function mapEstadoCita(raw: Record<string, unknown>): EstadoCita {
+  const estado = String(raw.Estado_Cita ?? "").toUpperCase();
+  if (ESTADOS_CITA.includes(estado as EstadoCita)) return estado as EstadoCita;
+  return raw.Estado === false ? "CANCELADA" : "PENDIENTE";
 }
 
 /**
@@ -51,6 +62,8 @@ function mapCliente(row: ClienteRaw) {
  */
 function mapCita_Servicio(row: Cita_ServicioRaw): CitaConDetalle["servicios"][0] {
   const serv = row.Servicio as ServicioRaw | null;
+  const trabajadorRelacion = row.Trabajador as { Usuario?: { ID?: unknown; Nombre?: unknown; Apellido?: unknown; Color_agenda?: unknown } | null } | null;
+  const usuario = trabajadorRelacion?.Usuario;
   const precio = Number(serv?.Precio ?? 0);
   const duracion = Number(serv?.Duracion_minutos ?? 30);
   const nombre = serv ? String(serv.Nombre ?? "") : "";
@@ -61,6 +74,12 @@ function mapCita_Servicio(row: Cita_ServicioRaw): CitaConDetalle["servicios"][0]
     Cantidad: Number(row.Cantidad ?? 1),
     precio_aplicado: precio,
     duracion_minutos: duracion,
+    trabajador: usuario ? {
+      id: String(usuario.ID ?? row.trabajador_id ?? ""),
+      nombre: String(usuario.Nombre ?? ""),
+      apellido: String(usuario.Apellido ?? ""),
+      color_agenda: usuario.Color_agenda ? String(usuario.Color_agenda) : null,
+    } : null,
     Servicio: serv ? {
       Nombre: nombre,
       Precio: precio,
@@ -86,7 +105,10 @@ export async function obtenerCitas(filtros: FiltroCitas = {}): Promise<CitaConDe
         trabajador_id,
         orden,
         Cantidad,
-        Servicio:Servicio(ID, Nombre, Precio, Duracion_minutos)
+        Servicio:Servicio(ID, Nombre, Precio, Duracion_minutos),
+        Trabajador:Trabajador_Servicio!FK_CitaServ_Trabajador_Servicio(
+          Usuario:Usuario!FK_TrabajadorServicio_Usuario(ID, Nombre, Apellido, Color_agenda)
+        )
       )
     `)
     .order("fecha_cita", { ascending: true })
@@ -108,7 +130,7 @@ export async function obtenerCitas(filtros: FiltroCitas = {}): Promise<CitaConDe
     query = query.eq("servicios.trabajador_id", filtros.trabajadorId);
   }
   if (filtros.soloActivas !== false) {
-    query = query.eq("Estado", true);
+    query = query.neq("Estado_Cita", "CANCELADA").neq("Estado_Cita", "NO_SHOW");
   }
 
   const { data, error } = await query;
@@ -119,7 +141,7 @@ export async function obtenerCitas(filtros: FiltroCitas = {}): Promise<CitaConDe
     const serviciosRaw = (raw.servicios ?? []) as Cita_ServicioRaw[];
     const servicios = serviciosRaw.map(mapCita_Servicio);
     const fecha = raw.fecha_cita ? String(raw.fecha_cita) : "";
-    const estado = raw.Estado !== false ? "PENDIENTE" : "CANCELADA";
+    const estado = mapEstadoCita(raw);
 
     return {
       ID: String(raw.ID ?? ""),
@@ -138,11 +160,11 @@ export async function obtenerCitas(filtros: FiltroCitas = {}): Promise<CitaConDe
         apellido: cliente.Apellido ? String(cliente.Apellido) : null,
         telefono: cliente.Telefono ? String(cliente.Telefono) : null,
       } : null,
-      trabajador: servicios[0]?.trabajador_id ? { id: servicios[0].trabajador_id, nombre: "" } : null,
+      trabajador: servicios[0]?.trabajador ?? null,
       fecha,
       estado,
       codigo_cita: String(raw.ID ?? ""),
-      monto_estimado: servicios.reduce((total, s) => total + Number(s.precio_aplicado ?? 0), 0),
+      monto_estimado: servicios.reduce((total, s) => total + Number(s.precio_aplicado ?? 0) * s.Cantidad, 0),
       notas: null,
     } satisfies CitaConDetalle;
   });
@@ -164,7 +186,10 @@ export async function obtenerCitaPorId(id: string): Promise<CitaConDetalle> {
         trabajador_id,
         orden,
         Cantidad,
-        Servicio:Servicio(ID, Nombre, Precio, Duracion_minutos)
+        Servicio:Servicio(ID, Nombre, Precio, Duracion_minutos),
+        Trabajador:Trabajador_Servicio!FK_CitaServ_Trabajador_Servicio(
+          Usuario:Usuario!FK_TrabajadorServicio_Usuario(ID, Nombre, Apellido)
+        )
       )
     `)
     .eq("ID", id)
@@ -178,7 +203,7 @@ export async function obtenerCitaPorId(id: string): Promise<CitaConDetalle> {
   const servicios = serviciosRaw.map(mapCita_Servicio);
 
   const fecha = raw.fecha_cita ? String(raw.fecha_cita) : "";
-  const estado = raw.Estado !== false ? "PENDIENTE" : "CANCELADA";
+  const estado = mapEstadoCita(raw);
 
   return {
     ID: String(raw.ID ?? ""),
@@ -197,11 +222,11 @@ export async function obtenerCitaPorId(id: string): Promise<CitaConDetalle> {
       apellido: cliente.Apellido ? String(cliente.Apellido) : null,
       telefono: cliente.Telefono ? String(cliente.Telefono) : null,
     } : null,
-    trabajador: servicios[0]?.trabajador_id ? { id: servicios[0].trabajador_id, nombre: "" } : null,
+    trabajador: servicios[0]?.trabajador ?? null,
     fecha,
     estado,
     codigo_cita: String(raw.ID ?? ""),
-    monto_estimado: servicios.reduce((total, s) => total + Number(s.precio_aplicado ?? 0), 0),
+    monto_estimado: servicios.reduce((total, s) => total + Number(s.precio_aplicado ?? 0) * s.Cantidad, 0),
     notas: null,
   } satisfies CitaConDetalle;
 }
@@ -210,44 +235,21 @@ export async function obtenerCitaPorId(id: string): Promise<CitaConDetalle> {
  * Crea una cita con sus servicios
  */
 export async function crearCita(payload: CrearCitaPayload): Promise<CitaConDetalle> {
-  // 1. Crear la cita
-  const { data: citaData, error: citaError } = await supabase
-    .from("Cita")
-    .insert({
-      cliente_id: payload.cliente_id,
-      fecha_cita: payload.fecha_cita,
-      hora_inicio: payload.hora_inicio,
-      hora_fin: payload.hora_fin,
-      Estado: true,
-    })
-    .select("ID")
-    .single();
-
-  if (citaError) throw new Error(citaError.message);
-  const citaId = (citaData as { ID: number }).ID;
-
-  // 2. Insertar los servicios de la cita
-  if (payload.servicios.length > 0) {
-    const detalles = payload.servicios.map((s, index) => ({
-      cita_id: citaId,
-      servicio_id: s.servicio_id,
-      trabajador_id: s.trabajador_id,
-      orden: s.orden ?? index + 1,
-      Cantidad: s.Cantidad ?? 1,
-    }));
-
-    const { error: detalleError } = await supabase
-      .from("Cita_Servicio")
-      .insert(detalles);
-
-    if (detalleError) {
-      // Si falla, eliminamos la cita creada
-      await supabase.from("Cita").delete().eq("ID", citaId);
-      throw new Error(`Error al guardar servicios: ${detalleError.message}`);
-    }
-  }
-
-  // 3. Devolver la cita completa
+  // RPC transaccional: nunca deja una cabecera de cita sin sus servicios.
+  const { data, error } = await supabase.rpc("crear_cita_con_servicios", {
+    p_cliente_id: Number(payload.cliente_id),
+    p_fecha: payload.fecha_cita ?? payload.fecha,
+    p_hora_inicio: payload.hora_inicio,
+    p_hora_fin: payload.hora_fin,
+    p_servicios: payload.servicios.map((servicio, index) => ({
+      servicio_id: Number(servicio.servicio_id),
+      trabajador_id: Number(servicio.trabajador_id ?? payload.trabajador_id),
+      orden: servicio.orden ?? index + 1,
+      cantidad: servicio.Cantidad ?? 1,
+    })),
+  });
+  if (error) throw new Error(error.message);
+  const citaId = String(data);
   return obtenerCitaPorId(String(citaId));
 }
 
@@ -307,12 +309,57 @@ export async function actualizarCita(
 /**
  * Cambia el estado de una cita (activar/desactivar)
  */
-export async function cambiarEstadoCita(id: string, activo: boolean): Promise<void> {
-  const { error } = await supabase
-    .from("Cita")
-    .update({ Estado: activo })
-    .eq("ID", id);
+export async function cambiarEstadoCita(id: string, estado: EstadoCita): Promise<void> {
+  const { error } = await supabase.rpc("cambiar_estado_cita", {
+    p_cita_id: Number(id),
+    p_estado: estado,
+  });
+  if (error) throw new Error(error.message);
+}
 
+/** Añade un servicio de forma transaccional y conserva los detalles previos. */
+export async function agregarServicioEnCita(
+  citaId: string,
+  servicioId: string,
+  trabajadorId: string,
+): Promise<CitaConDetalle> {
+  const { error } = await supabase.rpc("agregar_servicio_a_cita", {
+    p_cita_id: Number(citaId),
+    p_servicio_id: Number(servicioId),
+    p_trabajador_id: Number(trabajadorId),
+  });
+  if (error) throw new Error(error.message);
+  return obtenerCitaPorId(citaId);
+}
+
+/** Registra un producto dentro de la venta vinculada a la cita. */
+export async function agregarProductoEnCita(
+  citaId: string,
+  productoId: string,
+  cantidad: number,
+): Promise<void> {
+  const { error } = await supabase.rpc("agregar_producto_a_cita", {
+    p_cita_id: Number(citaId),
+    p_producto_id: Number(productoId),
+    p_cantidad: cantidad,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Descuenta del inventario un producto consumido en la atención, sin venderlo. */
+export async function consumirProductoEnCita(
+  citaId: string,
+  productoId: string,
+  cantidad: number,
+): Promise<void> {
+  if (!Number.isInteger(cantidad) || cantidad < 1) {
+    throw new Error("La cantidad debe ser un entero mayor que cero.");
+  }
+  const { error } = await supabase.rpc("consumir_producto_en_cita", {
+    p_cita_id: Number(citaId),
+    p_producto_id: Number(productoId),
+    p_cantidad: cantidad,
+  });
   if (error) throw new Error(error.message);
 }
 
@@ -320,14 +367,14 @@ export async function cambiarEstadoCita(id: string, activo: boolean): Promise<vo
  * Cancela una cita (desactiva)
  */
 export async function cancelarCita(id: string): Promise<void> {
-  await cambiarEstadoCita(id, false);
+  await cambiarEstadoCita(id, "CANCELADA");
 }
 
 /**
  * Reactiva una cita cancelada
  */
 export async function reactivarCita(id: string): Promise<void> {
-  await cambiarEstadoCita(id, true);
+  await cambiarEstadoCita(id, "PENDIENTE");
 }
 
 /**

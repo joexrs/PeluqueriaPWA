@@ -227,6 +227,9 @@ CREATE TABLE IF NOT EXISTS "Movimientos" (
     "Fecha_movimiento" TIMESTAMPTZ DEFAULT NOW(),
     "Lote_id"          INTEGER NOT NULL,
     "Producto_id"      INTEGER NOT NULL,
+    "Cita_ID"           INTEGER,
+    "Venta_ID"          INTEGER,
+    "Motivo"             TEXT,
     "Estado"           BOOLEAN DEFAULT TRUE,
     "Created_at"       TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT "FK_Movimientos_Lote_Producto" FOREIGN KEY ("Lote_id", "Producto_id")
@@ -296,6 +299,20 @@ CREATE TABLE IF NOT EXISTS "Cita" (
     CONSTRAINT "CK_Cita_Horas" CHECK ("hora_fin" > "hora_inicio")
 );
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'FK_Movimientos_Cita'
+       AND conrelid = 'public."Movimientos"'::regclass
+  ) THEN
+    ALTER TABLE public."Movimientos"
+      ADD CONSTRAINT "FK_Movimientos_Cita" FOREIGN KEY ("Cita_ID")
+      REFERENCES public."Cita"("ID") ON DELETE SET NULL;
+  END IF;
+END;
+$$;
+
 -- =====================================================================
 -- 12. TABLA: Cita_Servicio
 -- =====================================================================
@@ -329,6 +346,20 @@ CREATE TABLE IF NOT EXISTS "Venta" (
     CONSTRAINT "FK_Venta_Usuario" FOREIGN KEY ("Usuario_ID") REFERENCES "Usuario"("ID") ON DELETE RESTRICT,
     CONSTRAINT "FK_Venta_Cita" FOREIGN KEY ("Cita_ID") REFERENCES "Cita"("ID") ON DELETE SET NULL
 );
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conname = 'FK_Movimientos_Venta'
+       AND conrelid = 'public."Movimientos"'::regclass
+  ) THEN
+    ALTER TABLE public."Movimientos"
+      ADD CONSTRAINT "FK_Movimientos_Venta" FOREIGN KEY ("Venta_ID")
+      REFERENCES public."Venta"("ID") ON DELETE SET NULL;
+  END IF;
+END;
+$$;
 
 -- =====================================================================
 -- 14. TABLA: Venta_Detalle
@@ -604,6 +635,8 @@ CREATE INDEX IF NOT EXISTS idx_citaserv_servicio      ON "Cita_Servicio"("servic
 CREATE INDEX IF NOT EXISTS idx_venta_cliente          ON "Venta"("Cliente_ID");
 CREATE INDEX IF NOT EXISTS idx_venta_usuario          ON "Venta"("Usuario_ID");
 CREATE INDEX IF NOT EXISTS idx_venta_cita             ON "Venta"("Cita_ID");
+CREATE INDEX IF NOT EXISTS idx_movimientos_cita       ON "Movimientos"("Cita_ID");
+CREATE INDEX IF NOT EXISTS idx_movimientos_venta      ON "Movimientos"("Venta_ID");
 CREATE INDEX IF NOT EXISTS idx_venta_fecha            ON "Venta"("Fecha_Venta");
 CREATE INDEX IF NOT EXISTS idx_ventadet_venta         ON "Venta_Detalle"("Venta_ID");
 CREATE INDEX IF NOT EXISTS idx_ventadet_servicio      ON "Venta_Detalle"("Servicio_ID");

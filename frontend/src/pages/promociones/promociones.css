@@ -2,9 +2,10 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
 }
 
-.toolbar {
+.promociones-page > .toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -12,7 +13,7 @@
   gap: 12px;
 }
 
-.toolbar input[type="text"] {
+.promociones-page > .toolbar input[type="text"] {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 9px 12px;
@@ -90,6 +91,7 @@
 .tabla-promociones {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .tabla-promociones th,
@@ -209,7 +211,9 @@
   border: 1px solid var(--color-border);
   border-radius: 16px;
   align-self: start;
-  max-width: 540px;
+  width: min(100%, 720px);
+  max-width: 720px;
+  box-sizing: border-box;
 }
 
 .promocion-form h2 {
@@ -240,6 +244,8 @@
 }
 
 .promocion-form textarea {
+  width: 100%;
+  box-sizing: border-box;
   resize: vertical;
   min-height: 80px;
 }
@@ -287,13 +293,18 @@
 
 /* Responsive */
 @media (max-width: 768px) {
-  .toolbar {
+  .promociones-page > .toolbar {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .toolbar input[type="text"] {
+  .promociones-page > .toolbar input[type="text"] {
     min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .promociones-page > .toolbar .btn {
     width: 100%;
   }
 
@@ -332,6 +343,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    min-width: 0;
+    overflow-wrap: anywhere;
     padding: 8px 0;
     border-bottom: 1px solid var(--color-border);
   }
@@ -354,11 +367,32 @@
     justify-content: flex-end;
   }
 
-  .form-row {
+  .tabla-promociones td[data-label="Acciones"] {
+    display: block;
+  }
+
+  .tabla-promociones td[data-label="Acciones"]::before {
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .acciones-cell .btn {
+    flex: 1 1 auto;
+  }
+
+  .promocion-form .form-row {
     grid-template-columns: 1fr;
   }
 
   .promocion-form {
     padding: 18px;
+  }
+
+  .promocion-form .form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .promocion-form .form-actions .btn {
+    width: 100%;
   }
 }

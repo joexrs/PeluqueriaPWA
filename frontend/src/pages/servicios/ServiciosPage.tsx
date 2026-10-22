@@ -190,7 +190,7 @@ export default function ServiciosPage() {
   if (vista === "lista") {
     return (
       <div className="servicios-page">
-        <div className="toolbar">
+        <div className="toolbar servicios-toolbar">
           <input
             type="text"
             value={busqueda}

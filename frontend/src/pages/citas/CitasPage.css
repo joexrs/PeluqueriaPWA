@@ -597,6 +597,7 @@
 .ag-datos dt { font-size: 12px; color: var(--ag-suave); }
 .ag-datos dd { margin: 2px 0 0; font-weight: 600; }
 .ag-bloque h4 { margin: 0 0 8px; font-size: 14px; }
+.ag-bloque .ag-ayuda { margin: -2px 0 10px; color: var(--ag-suave); font-size: 12px; line-height: 1.4; }
 .ag-servicios { margin: 0; padding: 0; list-style: none; }
 .ag-servicios li {
   display: flex;
@@ -630,6 +631,23 @@
 .ag-fila-accion { display: flex; gap: 8px; }
 .ag-fila-accion select { flex: 1; min-width: 0; }
 .ag-fila-accion .ag-cantidad { width: 72px; flex: none; }
+.ag-fila-accion--producto {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px auto;
+  align-items: stretch;
+}
+.ag-fila-accion--producto select {
+  width: 100%;
+  min-width: 0;
+}
+.ag-fila-accion--producto .ag-cantidad {
+  width: 76px;
+  min-width: 0;
+  text-align: center;
+}
+.ag-fila-accion--producto .ag-btn {
+  white-space: nowrap;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ag-panel { animation: none; }
@@ -652,6 +670,13 @@
 .ag-opcion:hover { background: var(--ag-fondo); }
 .ag-opcion--activa { background: var(--ag-vino-claro); color: var(--ag-vino-osc); font-weight: 600; }
 .ag-opcion input { accent-color: var(--ag-vino); }
+.ag-opcion__color {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 50%;
+}
 
 .ag-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .ag-chip {
