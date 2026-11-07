@@ -157,6 +157,17 @@ export default function LoginPage() {
             {loading && <span className="spinner-small" />}
             {loading ? "Ingresando..." : "Iniciar sesión"}
           </button>
+
+          <div style={{ textAlign: "center", marginTop: "1.25rem" }}>
+            <button
+              type="button"
+              className="inline-link"
+              onClick={() => navigate("/")}
+              style={{ fontSize: "0.85rem", opacity: 0.85, cursor: "pointer" }}
+            >
+              ← Volver a consulta de citas (Portal Clientes)
+            </button>
+          </div>
         </form>
       </div>
 

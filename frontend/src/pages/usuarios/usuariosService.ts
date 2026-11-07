@@ -153,22 +153,7 @@ export async function crearUsuario(payload: CrearUsuarioPayload): Promise<Usuari
     },
   });
 
-  const { data: functionData, error } = response;
-  
-  console.log("DATA:", functionData);
-  console.log("ERROR:", error);
-
-  if ((error as any)?.context) {
-    const errorResponse = (error as any).context as Response;
-    console.log("STATUS:", errorResponse.status);
-    console.log("STATUS TEXT:", errorResponse.statusText);
-    try {
-      const texto = await errorResponse.text();
-      console.log("RESPUESTA REAL:", texto);
-    } catch (e) {
-      console.log("No se pudo leer el body:", e);
-    }
-  }
+  const { error } = response;
 
   if (error) {
     throw new Error(error.message || "No se pudo crear el usuario.");

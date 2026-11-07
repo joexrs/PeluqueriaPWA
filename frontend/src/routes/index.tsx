@@ -30,12 +30,16 @@ import VentasPage from "../pages/ventas/VentasPage";
 import ReportesPage from "../pages/reportes/ReportesPage";
 import TrabajadoresPage from "../pages/trabajadores/TrabajadoresPage";
 import UsuariosPage from "../pages/usuarios/UsuariosPage";
+import ConsultaCitaPage from "../pages/consulta-cita/ConsultaCitaPage";
 
 export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ── Ruta pública: solo accesible sin sesión ── */}
+        {/* ── Ruta pública general: Consulta de citas por DNI para clientes ── */}
+        <Route path="/" element={<ConsultaCitaPage />} />
+
+        {/* ── Ruta pública de acceso de personal: solo accesible sin sesión ── */}
         <Route
           path="/login"
           element={
@@ -154,11 +158,8 @@ export default function AppRoutes() {
           />
         </Route>
 
-        {/* ── Redirecciones ── */}
-        <Route index element={<Navigate to="/login" replace />} />
-
-        {/* Catch-all: cualquier ruta no definida → login */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* Catch-all: cualquier ruta no definida redirige a la página principal */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
