@@ -258,7 +258,12 @@ export default function ProductosPage() {
             </div>
             <div className="info-row">
               <span>Precio público</span>
-              <span>${productoDetalle.precio_venta_publico}</span>
+              <span>
+                S/ {Number(productoDetalle.precio_venta_publico).toLocaleString("es-PE", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
             </div>
             <div className="info-row">
               <span>Caducidad</span>

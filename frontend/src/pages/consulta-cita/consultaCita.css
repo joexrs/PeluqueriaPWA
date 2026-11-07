@@ -1,5 +1,6 @@
 .consulta-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
@@ -145,7 +146,7 @@
   position: relative;
 }
 
-.consulta-input-group svg {
+.consulta-input-group > svg {
   position: absolute;
   left: 1rem;
   top: 50%;
@@ -153,11 +154,13 @@
   color: var(--color-ink-muted);
   width: 18px;
   height: 18px;
+  pointer-events: none;
+  z-index: 1;
 }
 
-.consulta-input {
+.consulta-input-group .consulta-input {
   width: 100%;
-  padding: 0.85rem 1rem 0.85rem 2.75rem;
+  padding: 0.85rem 1rem 0.85rem 3.25rem;
   font-size: 1.05rem;
   border: 1px solid var(--color-border);
   border-radius: 10px;
@@ -368,14 +371,105 @@
   .consulta-navbar {
     padding: 0.75rem 1rem;
   }
+
+  .consulta-brand {
+    flex: 1;
+    min-width: 0;
+    gap: 0.625rem;
+  }
+
+  .consulta-logo {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+  }
+
+  .consulta-brand-text {
+    min-width: 0;
+  }
+
+  .consulta-brand-text h1 {
+    font-size: clamp(0.95rem, 4vw, 1.15rem);
+    line-height: 1.05;
+  }
+
+  .consulta-brand-text p {
+    font-size: 0.65rem;
+    letter-spacing: 0.06em;
+  }
+
+  .consulta-nav-actions {
+    flex-shrink: 0;
+  }
+
+  .btn-lock {
+    gap: 0.4rem;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+  }
+
+  .btn-lock span {
+    max-width: 5.5rem;
+    text-align: center;
+  }
+
+  .consulta-container {
+    padding: 2rem 1rem 3rem;
+  }
+
+  .consulta-header {
+    margin-bottom: 2rem;
+  }
+
   .consulta-header h2 {
-    font-size: 1.75rem;
+    font-size: clamp(1.55rem, 7vw, 1.75rem);
+    line-height: 1.15;
   }
+
+  .consulta-header p {
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
   .consulta-search-card {
-    padding: 1.25rem;
+    padding: 1rem;
   }
+
+  .consulta-form {
+    flex-direction: column;
+  }
+
+  .consulta-input-group {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .consulta-btn-submit {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .consulta-footer {
+    padding: 1.5rem 1rem;
+    line-height: 1.5;
+  }
+
   .cita-card-body {
     grid-template-columns: 1fr;
   }
-}
 
+  .cita-card-top {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .cita-fecha {
+    min-width: 0;
+    font-size: 0.95rem;
+  }
+
+  .cita-fecha span {
+    overflow-wrap: anywhere;
+  }
+}

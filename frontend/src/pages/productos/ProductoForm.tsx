@@ -110,7 +110,7 @@ export default function ProductoForm({ categorias, onSubmit, onCancel }: Props) 
       </label>
 
       <label>
-        Precio *
+        Precio de venta (S/) *
         <input
           type="number"
           min="0"

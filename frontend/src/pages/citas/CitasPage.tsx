@@ -36,12 +36,11 @@ const HORA_PX = 56; // alto de una hora en la vista semanal
 const LETRAS_SEMANA = ["L", "M", "M", "J", "V", "S", "D"];
 
 type Categoria = "hair" | "nails" | "skin";
-const CATEGORIAS: Record<Categoria, { label: string; color: string }> = {
-  hair: { label: "Cabello", color: "#7a2e45" },
-  nails: { label: "Uñas", color: "#d9b642" },
-  skin: { label: "Piel", color: "#2e7a5d" },
+const CATEGORIAS: Record<Categoria, { color: string }> = {
+  hair: { color: "#7a2e45" },
+  nails: { color: "#d9b642" },
+  skin: { color: "#2e7a5d" },
 };
-const TODAS_CATEGORIAS = Object.keys(CATEGORIAS) as Categoria[];
 
 /** Misma regla que usaba la agenda anterior: se deduce por el nombre del servicio. */
 function categoriaDe(c: CitaConDetalle): Categoria {
@@ -395,8 +394,6 @@ function Filtros({
   trabajadores,
   trabajadorId,
   onTrabajador,
-  categorias,
-  onCategoria,
   mostrarCanceladas,
   onCanceladas,
   soloCategorias,
@@ -407,8 +404,6 @@ function Filtros({
   trabajadores: UsuarioRow[];
   trabajadorId: string;
   onTrabajador: (id: string) => void;
-  categorias: Categoria[];
-  onCategoria: (c: Categoria) => void;
   mostrarCanceladas: boolean;
   onCanceladas: (v: boolean) => void;
   soloCategorias?: boolean;
@@ -429,23 +424,6 @@ function Filtros({
           </label>
         ))}
       </div>}
-
-      <div className="ag-filtro">
-        <h4>Servicios</h4>
-        <div className="ag-chips">
-          {TODAS_CATEGORIAS.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              className={`ag-chip ag-chip--${cat}${categorias.includes(cat) ? " ag-chip--activo" : ""}`}
-              aria-pressed={categorias.includes(cat)}
-              onClick={() => onCategoria(cat)}
-            >
-              {CATEGORIAS[cat].label}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {servicios && onServicio && (
         <label className="ag-filtro">
@@ -966,7 +944,6 @@ export default function CitasPage() {
 
   const [trabajadorFiltro, setTrabajadorFiltro] = useState("");
   const [servicioFiltro, setServicioFiltro] = useState("");
-  const [categorias, setCategorias] = useState<Categoria[]>(TODAS_CATEGORIAS);
   const [mostrarCanceladas, setMostrarCanceladas] = useState(false);
 
   const [citas, setCitas] = useState<CitaConDetalle[]>([]);
@@ -1091,11 +1068,10 @@ export default function CitasPage() {
     () =>
       citas.filter(
         (c) =>
-          categorias.includes(categoriaDe(c)) &&
           (!servicioFiltro || c.servicios.some((s) => s.servicio_id === servicioFiltro)) &&
           (mostrarCanceladas || (c.estado !== "CANCELADA" && c.estado !== "NO_SHOW")),
       ),
-    [citas, categorias, mostrarCanceladas, servicioFiltro],
+    [citas, mostrarCanceladas, servicioFiltro],
   );
 
   const porFecha = useMemo(() => {
@@ -1125,17 +1101,11 @@ export default function CitasPage() {
       .filter(([f]) => f >= inicio && (!fin || f <= fin))
       .sort(([a], [b]) => a.localeCompare(b));
 
-  function alternarCategoria(cat: Categoria) {
-    setCategorias((actuales) => (actuales.includes(cat) ? actuales.filter((c) => c !== cat) : [...actuales, cat]));
-  }
-
   const filtros = (
     <Filtros
       trabajadores={trabajadores}
       trabajadorId={esTrabajador ? String(profile?.ID ?? "") : trabajadorFiltro}
       onTrabajador={setTrabajadorFiltro}
-      categorias={categorias}
-      onCategoria={alternarCategoria}
       mostrarCanceladas={mostrarCanceladas}
       onCanceladas={setMostrarCanceladas}
       soloCategorias={esTrabajador}

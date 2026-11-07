@@ -1298,8 +1298,9 @@ button {
   .login-panel {
     padding: 32px 24px;
     min-height: 100vh;
-    justify-content: flex-start;
-    padding-top: 48px;
+    min-height: 100dvh;
+    justify-content: center;
+    padding: max(32px, env(safe-area-inset-top)) 24px max(32px, env(safe-area-inset-bottom));
   }
   
   .login-brand {
@@ -1328,8 +1329,7 @@ button {
 
 @media (max-width: 480px) {
   .login-panel {
-    padding: 24px 16px;
-    padding-top: 32px;
+    padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
   }
   
   .login-brand h1 {

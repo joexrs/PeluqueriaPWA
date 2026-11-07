@@ -116,7 +116,7 @@ BEGIN
   JOIN public."Cliente" cl ON cl."ID" = c.cliente_id
   LEFT JOIN public."Cita_Servicio" cs ON cs.cita_id = c."ID"
   LEFT JOIN public."Servicio" s ON s."ID" = cs.servicio_id
-  WHERE cl."DNI" = v_dni_limpio
+  WHERE trim(regexp_replace(COALESCE(cl."DNI", ''), '[^0-9a-zA-Z]', '', 'g')) = v_dni_limpio
     AND cl."Estado" IS TRUE
   GROUP BY c."ID", c.fecha_cita, c.hora_inicio, c.hora_fin, c."Estado_Cita", cl."Nombre"
   ORDER BY c.fecha_cita DESC, c.hora_inicio DESC
@@ -129,4 +129,3 @@ REVOKE ALL ON FUNCTION public.consultar_citas_por_dni(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.consultar_citas_por_dni(text) TO anon, authenticated;
 
 NOTIFY pgrst, 'reload schema';
-
