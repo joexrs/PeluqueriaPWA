@@ -31,6 +31,7 @@ const TICKET_PRINT_CSS = `
   .ticket-text-right { text-align: right; }
   .ticket-text-center { text-align: center; }
   .ticket-discount-tag { display: block; font-size: 10px; }
+  .ticket-unit-price { display: block; font-size: 10px; color: #444; }
   .ticket-totals-list { font-size: 11px; }
   .ticket-total-row { display: flex; justify-content: space-between; }
   .ticket-total-main { font-size: 13px; font-weight: 700; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin: 4px 0; }
@@ -88,6 +89,8 @@ export default function ComprobanteTicketModal({
     second: "2-digit",
   });
 
+  const subtotalServicios = venta.servicios.reduce((sum, s) => sum + s.precioOriginal, 0);
+  const descuentoServicios = venta.servicios.reduce((sum, s) => sum + s.descuentoMonto, 0);
   const totalServicios = venta.servicios.reduce((sum, s) => sum + s.precio, 0);
   const totalProductos = venta.productos.reduce((sum, p) => sum + p.precioUnitario * p.cantidad, 0);
   const logoAbsoluto = useMemo(
@@ -150,10 +153,24 @@ export default function ComprobanteTicketModal({
       `Ticket ${ticketNro}`,
       `${fechaTexto} ${horaTexto}`,
       `Cliente: ${venta.clienteNombre || "Clientes varios"}`,
-      ...venta.servicios.map((s) => `• ${s.nombre} — S/ ${formatearMoneda(s.precio)}`),
+      ...venta.servicios.flatMap((s) => [
+        `• ${s.nombre}${s.cantidad > 1 ? ` x${s.cantidad}` : ""}`,
+        `  Precio regular: S/ ${formatearMoneda(s.precioOriginal)}`,
+        ...(s.descuentoMonto > 0
+          ? [`  Promoción (${s.descuentoPorcentaje}%): -S/ ${formatearMoneda(s.descuentoMonto)}`]
+          : []),
+        `  Importe: S/ ${formatearMoneda(s.precio)}`,
+      ]),
       ...venta.productos.map(
         (p) => `• ${p.nombre} x${p.cantidad} — S/ ${formatearMoneda(p.precioUnitario * p.cantidad)}`,
       ),
+      `Servicios (precio regular): S/ ${formatearMoneda(subtotalServicios)}`,
+      ...(descuentoServicios > 0
+        ? [`Descuento promocional: -S/ ${formatearMoneda(descuentoServicios)}`]
+        : []),
+      ...(totalProductos > 0
+        ? [`Productos: S/ ${formatearMoneda(totalProductos)}`]
+        : []),
       `Total: S/ ${formatearMoneda(total)}`,
       `Pago: ${etiquetaMetodoPago(venta.metodoPago)}`,
       vuelto > 0 ? `Vuelto: S/ ${formatearMoneda(vuelto)}` : "",
@@ -343,12 +360,15 @@ export default function ComprobanteTicketModal({
               <tbody>
                 {venta.servicios.map((s, idx) => (
                   <tr key={`s-${s.id}-${idx}`}>
-                    <td className="ticket-text-center">1</td>
+                    <td className="ticket-text-center">{s.cantidad}</td>
                     <td>
                       {s.nombre.toUpperCase()}
-                      {Boolean(s.descuentoPorcentaje) && (
+                      <span className="ticket-unit-price">
+                        Precio regular: S/ {formatearMoneda(s.precioOriginal)}
+                      </span>
+                      {s.descuentoMonto > 0 && (
                         <span className="ticket-discount-tag">
-                          (Promo: -{s.descuentoPorcentaje}%)
+                          Promo ({s.descuentoPorcentaje}%): -S/ {formatearMoneda(s.descuentoMonto)}
                         </span>
                       )}
                     </td>
@@ -376,7 +396,19 @@ export default function ComprobanteTicketModal({
             <div className="ticket-totals-list">
               {totalServicios > 0 && (
                 <div className="ticket-total-row">
-                  <span>Servicios:</span>
+                  <span>Servicios (precio regular):</span>
+                  <span>S/ {formatearMoneda(subtotalServicios)}</span>
+                </div>
+              )}
+              {descuentoServicios > 0 && (
+                <div className="ticket-total-row">
+                  <span>Descuento promocional:</span>
+                  <span>-S/ {formatearMoneda(descuentoServicios)}</span>
+                </div>
+              )}
+              {totalServicios > 0 && descuentoServicios > 0 && (
+                <div className="ticket-total-row">
+                  <span>Servicios con descuento:</span>
                   <span>S/ {formatearMoneda(totalServicios)}</span>
                 </div>
               )}
