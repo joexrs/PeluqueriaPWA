@@ -70,7 +70,16 @@ export interface VentaCita {
   clienteDni?: string | null;
   clienteTelefono?: string | null;
   cajeroNombre?: string | null;
-  servicios: Array<{ id: string; nombre: string; precio: number; duracion: number; descuentoPorcentaje?: number }>;
+  servicios: Array<{
+    id: string;
+    nombre: string;
+    cantidad: number;
+    precioOriginal: number;
+    descuentoMonto: number;
+    precio: number;
+    duracion: number;
+    descuentoPorcentaje?: number;
+  }>;
   productos: Array<{ id: string; nombre: string; cantidad: number; precioUnitario: number }>;
   metodoPago: MetodoPago | null;
   pagada: boolean;

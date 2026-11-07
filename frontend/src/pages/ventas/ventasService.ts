@@ -215,6 +215,7 @@ function toVentaCita(venta: VentaConDetalle): VentaCita {
   const clienteDni = (venta.Cliente as Record<string, unknown>)?.DNI ? String((venta.Cliente as Record<string, unknown>).DNI) : null;
   const clienteTel = (venta.Cliente as Record<string, unknown>)?.Telefono ? String((venta.Cliente as Record<string, unknown>).Telefono) : null;
   const cajero = `${venta.Usuario?.Nombre ?? ""} ${venta.Usuario?.Apellido ?? ""}`.trim() || null;
+  const redondearMoneda = (valor: number) => Math.round((valor + Number.EPSILON) * 100) / 100;
 
   return {
     id: String(venta.ID),
@@ -228,7 +229,10 @@ function toVentaCita(venta: VentaConDetalle): VentaCita {
       .map((detalle) => ({
         id: String(detalle.servicio_id),
         nombre: detalle.Servicio?.Nombre ?? "Servicio",
-        precio: detalle.subtotal * (1 - (detalle.descuento_porcentaje ?? 0) / 100),
+        cantidad: detalle.cantidad,
+        precioOriginal: detalle.subtotal,
+        descuentoMonto: redondearMoneda(detalle.subtotal * (detalle.descuento_porcentaje ?? 0) / 100),
+        precio: redondearMoneda(detalle.subtotal * (1 - (detalle.descuento_porcentaje ?? 0) / 100)),
         duracion: detalle.Servicio?.Duracion_minutos ?? 0,
         descuentoPorcentaje: detalle.descuento_porcentaje ?? 0,
       })),
