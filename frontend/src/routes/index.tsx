@@ -27,6 +27,7 @@ import ProductosPage from "../pages/productos/ProductosPage";
 import ServiciosPage from "../pages/servicios/ServiciosPage";
 import PromocionesPage from "../pages/promociones/PromocionesPage";
 import VentasPage from "../pages/ventas/VentasPage";
+import ReportesPage from "../pages/reportes/ReportesPage";
 import TrabajadoresPage from "../pages/trabajadores/TrabajadoresPage";
 import UsuariosPage from "../pages/usuarios/UsuariosPage";
 
@@ -118,6 +119,16 @@ export default function AppRoutes() {
             element={
               <RoleGuard rolesPermitidos={["admin", "jefe", "recepcionista"]}>
                 <VentasPage />
+              </RoleGuard>
+            }
+          />
+
+          {/* Reportes — admin, jefe, recepcionista (temporal para testing) */}
+          <Route
+            path="/reportes"
+            element={
+              <RoleGuard rolesPermitidos={["admin", "jefe", "recepcionista"]}>
+                <ReportesPage />
               </RoleGuard>
             }
           />

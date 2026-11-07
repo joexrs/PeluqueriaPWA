@@ -1,0 +1,526 @@
+/* Página de Reportes */
+.reportes-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header */
+.reportes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.reportes-header h2 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+}
+
+/* Filtros */
+.reportes-filters {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.filter-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-group input[type="date"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-size: 15px;
+  font-family: var(--font-body);
+}
+
+/* Tabs */
+.reportes-tabs {
+  display: flex;
+  gap: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 6px;
+}
+
+.reportes-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 20px;
+  background: transparent;
+  color: var(--color-ink-muted);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reportes-tab:hover {
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+.reportes-tab.active {
+  background: var(--color-accent);
+  color: #1a1a1a;
+  box-shadow: 0 2px 8px rgba(201, 168, 118, 0.3);
+}
+
+/* Contenido */
+.reportes-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* KPIs Grid */
+.kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.kpi-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kpi-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpi-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  line-height: 1.1;
+}
+
+.kpi-meta {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+
+/* Secciones de reporte */
+.reporte-section {
+  padding: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 20px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+/* Ranking list */
+.ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ranking-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.ranking-item:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 2px 8px rgba(201, 168, 118, 0.15);
+}
+
+.ranking-position {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.ranking-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ranking-info strong {
+  font-size: 15px;
+  color: var(--color-ink);
+}
+
+.ranking-info small {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+
+.ranking-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 120px;
+}
+
+.ranking-stats strong {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+}
+
+.ranking-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--color-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ranking-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Cuadre de caja */
+.cuadre-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.cuadre-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.cuadre-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.cuadre-card.cuadre-total {
+  grid-column: span 2;
+  background: linear-gradient(135deg, var(--color-accent-soft) 0%, var(--color-surface) 100%);
+  border: 2px solid var(--color-accent);
+}
+
+.cuadre-icon {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cuadre-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cuadre-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cuadre-amount {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+}
+
+.cuadre-amount-large {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--color-accent);
+  font-family: var(--font-display);
+}
+
+.cuadre-percentage {
+  font-size: 13px;
+  color: var(--color-ink-muted);
+}
+
+/* Tabla de comisiones */
+.comisiones-table {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.comisiones-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.comisiones-table thead {
+  background: var(--color-bg);
+}
+
+.comisiones-table th {
+  padding: 16px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.comisiones-table tbody tr {
+  border-bottom: 1px solid var(--color-border);
+  transition: background 0.2s ease;
+}
+
+.comisiones-table tbody tr:hover {
+  background: var(--color-bg);
+}
+
+.comisiones-table td {
+  padding: 16px;
+  font-size: 15px;
+}
+
+.trabajador-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.trabajador-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.badge-accent {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.comision-amount {
+  color: var(--color-accent);
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.comisiones-table tfoot {
+  background: var(--color-accent-soft);
+  border-top: 2px solid var(--color-accent);
+}
+
+.comisiones-table tfoot td {
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.total-comision {
+  color: var(--color-accent);
+  font-family: var(--font-display);
+  font-size: 20px;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.empty-row {
+  padding: 40px;
+  color: var(--color-ink-muted);
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .kpis-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cuadre-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cuadre-card.cuadre-total {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .reportes-page {
+    gap: 16px;
+  }
+
+  .reportes-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .reportes-filters {
+    flex-direction: column;
+  }
+
+  .reportes-tabs {
+    flex-direction: column;
+  }
+
+  .kpis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cuadre-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cuadre-card.cuadre-total {
+    grid-column: span 1;
+  }
+
+  .comisiones-table {
+    overflow-x: auto;
+  }
+
+  .comisiones-table table {
+    min-width: 600px;
+  }
+
+  .ranking-item {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .ranking-stats {
+    align-items: flex-start;
+    width: 100%;
+  }
+}
