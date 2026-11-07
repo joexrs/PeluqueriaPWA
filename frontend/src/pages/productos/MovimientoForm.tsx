@@ -95,10 +95,22 @@ export default function MovimientoForm({ productos, productoInicialId, onSubmit,
       </label>
 
       <div className="toggle-group">
-        <button type="button" className={`toggle-btn ${tipo === "ENTRADA_COMPRA" ? "active" : ""}`} onClick={() => setTipo("ENTRADA_COMPRA")} disabled={guardando}>
+        <button
+          type="button"
+          className={`toggle-btn ${tipo === "ENTRADA_COMPRA" ? "active" : ""}`}
+          aria-pressed={tipo === "ENTRADA_COMPRA"}
+          onClick={() => setTipo("ENTRADA_COMPRA")}
+          disabled={guardando}
+        >
           Entrada
         </button>
-        <button type="button" className={`toggle-btn ${tipo === "SALIDA_USO_SERVICIO" ? "active" : ""}`} onClick={() => setTipo("SALIDA_USO_SERVICIO")} disabled={guardando}>
+        <button
+          type="button"
+          className={`toggle-btn ${tipo === "SALIDA_USO_SERVICIO" ? "active" : ""}`}
+          aria-pressed={tipo === "SALIDA_USO_SERVICIO"}
+          onClick={() => setTipo("SALIDA_USO_SERVICIO")}
+          disabled={guardando}
+        >
           Salida
         </button>
       </div>
