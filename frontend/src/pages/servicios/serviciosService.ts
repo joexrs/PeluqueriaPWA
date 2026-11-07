@@ -100,8 +100,11 @@ export async function obtenerServicios(busqueda = ""): Promise<Servicio[]> {
     .order("Nombre");
 
   if (busqueda.trim()) {
-    const q = busqueda.trim();
-    query = query.or(`Nombre.ilike.%${q}%,Descripcion.ilike.%${q}%`);
+    // Sanitizar caracteres especiales de PostgREST para prevenir filter injection
+    const q = busqueda.trim().replace(/[,.()"]/g, "");
+    if (q) {
+      query = query.or(`Nombre.ilike.%${q}%,Descripcion.ilike.%${q}%`);
+    }
   }
 
   const { data, error } = await query;

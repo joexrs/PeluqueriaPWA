@@ -1,0 +1,264 @@
+/* Overlay del Modal */
+.ticket-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.ticket-modal-card {
+  background: var(--color-surface, #ffffff);
+  border-radius: 16px;
+  max-width: 440px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  border: 1px solid var(--color-border, #e5e7eb);
+}
+
+.ticket-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-surface-2, #f9fafb);
+}
+
+.ticket-modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-ink, #111827);
+}
+
+.btn-icon-close {
+  background: transparent;
+  border: none;
+  color: var(--color-ink-muted, #6b7280);
+  cursor: pointer;
+  padding: 0.4rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-icon-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--color-ink, #111827);
+}
+
+.ticket-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+  background: #fdfbf7;
+}
+
+/* Diseño del Ticket Térmico */
+.ticket-paper {
+  background: #ffffff;
+  border: 1px dashed #d1c7b7;
+  border-radius: 8px;
+  padding: 1.5rem 1.25rem;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  color: #1a1a1a;
+  line-height: 1.4;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.ticket-header-logo {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.ticket-logo-img {
+  height: 48px;
+  width: auto;
+  margin: 0 auto;
+}
+
+.ticket-business-name {
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.5px;
+  margin: 0.25rem 0;
+  text-transform: uppercase;
+}
+
+.ticket-business-info {
+  text-align: center;
+  font-size: 11px;
+  color: #444444;
+  margin: 0 0 0.5rem;
+}
+
+.ticket-divider {
+  border: none;
+  border-top: 1px dashed #444444;
+  margin: 0.6rem 0;
+}
+
+.ticket-divider-double {
+  border: none;
+  border-top: 2px dashed #111111;
+  margin: 0.75rem 0;
+}
+
+.ticket-receipt-title {
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  margin: 0.5rem 0;
+  text-transform: uppercase;
+}
+
+.ticket-meta-grid {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 2px 8px;
+  font-size: 11px;
+}
+
+.ticket-meta-label {
+  font-weight: 600;
+}
+
+/* Tabla de Ítems del Ticket */
+.ticket-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 11px;
+}
+
+.ticket-items-table th {
+  text-align: left;
+  border-bottom: 1px dashed #444444;
+  padding: 4px 0;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.ticket-items-table td {
+  padding: 4px 0;
+  vertical-align: top;
+}
+
+.ticket-text-right {
+  text-align: right;
+}
+
+.ticket-text-center {
+  text-align: center;
+}
+
+.ticket-discount-tag {
+  display: block;
+  font-size: 10px;
+  color: #c2410c;
+  font-style: italic;
+}
+
+/* Totales */
+.ticket-totals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.ticket-total-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.ticket-total-main {
+  font-size: 14px;
+  font-weight: 700;
+  border-top: 1px dashed #222222;
+  border-bottom: 1px dashed #222222;
+  padding: 4px 0;
+  margin: 4px 0;
+}
+
+/* Pie del Ticket */
+.ticket-footer {
+  text-align: center;
+  font-size: 10px;
+  color: #555555;
+  margin-top: 0.75rem;
+}
+
+.ticket-footer p {
+  margin: 3px 0;
+}
+
+.ticket-unit-price {
+  font-size: 10px;
+  color: #666;
+  display: block;
+}
+
+.ticket-success-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 1.5rem 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(22, 163, 74, 0.12);
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  color: #15803d;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ticket-legal {
+  text-align: center;
+  font-size: 9px;
+  margin-top: 8px;
+  color: #666;
+}
+
+/* Acciones en Modal */
+.ticket-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+  background: var(--color-surface, #ffffff);
+}
+
+.ticket-modal-actions .btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+@media (max-width: 520px) {
+  .ticket-modal-actions .btn {
+    flex: 1 1 100%;
+  }
+}
+

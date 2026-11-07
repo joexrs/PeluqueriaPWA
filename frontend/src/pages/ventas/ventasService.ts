@@ -18,6 +18,7 @@ interface ClienteRaw {
   Nombre: unknown;
   Apellido: unknown;
   Telefono: unknown;
+  DNI?: unknown;
 }
 
 interface UsuarioRaw {
@@ -77,6 +78,7 @@ function mapCliente(row: ClienteRaw) {
     Nombre: String(row.Nombre ?? ""),
     Apellido: row.Apellido ? String(row.Apellido) : "",
     Telefono: row.Telefono ? String(row.Telefono) : "",
+    DNI: row.DNI ? String(row.DNI) : "",
   };
 }
 
@@ -128,7 +130,7 @@ export async function obtenerVentas(
     .from("Venta")
     .select(`
       *,
-      Cliente:Cliente(ID, Nombre, Apellido, Telefono),
+      Cliente:Cliente(ID, Nombre, Apellido, Telefono, DNI),
       Usuario:Usuario(ID, Nombre, Apellido),
       detalles:Venta_Detalle(
         ID, Venta_ID, Servicio_ID, Producto_ID, Cantidad,
@@ -179,7 +181,7 @@ export async function obtenerVentaPorId(id: string): Promise<VentaConDetalle> {
     .from("Venta")
     .select(`
       *,
-      Cliente:Cliente(ID, Nombre, Apellido, Telefono),
+      Cliente:Cliente(ID, Nombre, Apellido, Telefono, DNI),
       Usuario:Usuario(ID, Nombre, Apellido),
       detalles:Venta_Detalle(
         ID, Venta_ID, Servicio_ID, Producto_ID, Cantidad,
@@ -210,12 +212,19 @@ function toVentaCita(venta: VentaConDetalle): VentaCita {
   const metodosPago: MetodoPago[] = ["efectivo", "tarjeta", "transferencia", "yape", "plin"];
   const metodoPago = String(venta.Metodo_Pago ?? "").toLowerCase();
 
+  const clienteDni = (venta.Cliente as Record<string, unknown>)?.DNI ? String((venta.Cliente as Record<string, unknown>).DNI) : null;
+  const clienteTel = (venta.Cliente as Record<string, unknown>)?.Telefono ? String((venta.Cliente as Record<string, unknown>).Telefono) : null;
+  const cajero = `${venta.Usuario?.Nombre ?? ""} ${venta.Usuario?.Apellido ?? ""}`.trim() || null;
+
   return {
     id: String(venta.ID),
     citaId: String(venta.Cita_ID ?? ""),
     clienteNombre: `${venta.Cliente?.Nombre ?? ""} ${venta.Cliente?.Apellido ?? ""}`.trim(),
+    clienteDni: clienteDni || null,
+    clienteTelefono: clienteTel || null,
+    cajeroNombre: cajero,
     servicios: venta.detalles
-      .filter((detalle) => detalle.servicio_id)
+      .filter((detalle) => detalle.servicio_id && detalle.estado_detalle !== "Cancelado")
       .map((detalle) => ({
         id: String(detalle.servicio_id),
         nombre: detalle.Servicio?.Nombre ?? "Servicio",
@@ -224,7 +233,7 @@ function toVentaCita(venta: VentaConDetalle): VentaCita {
         descuentoPorcentaje: detalle.descuento_porcentaje ?? 0,
       })),
     productos: venta.detalles
-      .filter((detalle) => detalle.producto_id)
+      .filter((detalle) => detalle.producto_id && detalle.estado_detalle !== "Cancelado")
       .map((detalle) => ({
         id: String(detalle.producto_id),
         nombre: detalle.Producto?.Nombre ?? "Producto",
@@ -273,12 +282,18 @@ export async function registrarPago(
   montoRecibido: number,
 ): Promise<VentaCita> {
   const pendiente = await obtenerVentaPorId(ventaId);
-  if (pendiente.Estado_Venta !== "Pendiente") throw new Error("La venta no está pendiente de pago.");
-  if (!Number.isFinite(montoRecibido) || montoRecibido < Number(pendiente.Total)) {
-    throw new Error("El importe recibido no cubre el total de la venta.");
+  if (pendiente.Estado_Venta !== "Pendiente") {
+    throw new Error(`La venta ya no está pendiente de pago (Estado actual: ${pendiente.Estado_Venta}).`);
+  }
+  const totalNumerico = Math.round(Number(pendiente.Total || 0) * 100) / 100;
+  const montoNumerico = Math.round(Number(montoRecibido || 0) * 100) / 100;
+  if (!Number.isFinite(montoNumerico) || montoNumerico < totalNumerico) {
+    throw new Error(`El importe recibido (S/ ${montoNumerico.toFixed(2)}) no cubre el total de la venta (S/ ${totalNumerico.toFixed(2)}).`);
   }
   const { error } = await supabase.rpc("registrar_pago_venta", {
-    p_venta_id: Number(ventaId), p_metodo_pago: metodoPago, p_monto_recibido: montoRecibido,
+    p_venta_id: Number(ventaId),
+    p_metodo_pago: metodoPago,
+    p_monto_recibido: montoNumerico,
   });
   if (error) throw new Error(error.message);
   return toVentaCita(await obtenerVentaPorId(ventaId));
@@ -293,6 +308,31 @@ async function obtenerVentaConDetallePorCita(citaId: string): Promise<VentaConDe
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data ? obtenerVentaPorId(String(data.ID)) : null;
+}
+
+/**
+ * Crea una venta directa de productos (sin cita asociada)
+ */
+export async function crearVentaDirecta(
+  clienteId: string,
+  usuarioId: string,
+): Promise<VentaCita> {
+  const { data: ventaData, error: ventaError } = await supabase
+    .from("Venta")
+    .insert({
+      Cliente_ID: clienteId,
+      Usuario_ID: usuarioId,
+      Cita_ID: null,
+      Metodo_Pago: null,
+      Estado_Venta: "Pendiente",
+      Total: 0,
+    })
+    .select("ID")
+    .single();
+
+  if (ventaError) throw new Error(ventaError.message);
+  const ventaId = String((ventaData as { ID: number }).ID);
+  return toVentaCita(await obtenerVentaPorId(ventaId));
 }
 
 /**

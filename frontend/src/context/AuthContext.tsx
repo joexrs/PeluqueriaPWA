@@ -47,6 +47,7 @@ interface AuthState {
   user: User | null;
   profile: PerfilUsuario | null;
   role: RolUsuario | null;
+  userId: string | null;
   loading: boolean;
   profileError: string | null;
   signIn: (email: string, password: string) => Promise<{ ok: boolean; message: string }>;
@@ -101,20 +102,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (currentRequest !== requestId.current) return;
 
     if (error) {
-      console.error("No se pudo cargar el perfil asociado a Auth:", error.message);
-      setProfileError(
-        error.code === "PGRST116"
-          ? "Hay más de un perfil de Usuario vinculado a esta cuenta. Debe existir una sola fila con este auth_user_id."
-          : `No se pudo cargar tu perfil y rol desde Supabase: ${error.message}`,
-      );
+      setProfileError("Ocurrió un error al verificar tu cuenta. Por favor, contacta al administrador del sistema.");
       setLoading(false);
       return;
     }
 
     if (!data) {
-      setProfileError(
-        "No se encontró un perfil de Usuario visible para esta sesión. Comprueba que public.Usuario.auth_user_id coincida exactamente con el UUID de Supabase Auth y que RLS permita leer ese perfil.",
-      );
+      setProfileError("Tu cuenta no tiene un perfil de usuario activo asignado. Contacta al administrador.");
       setLoading(false);
       return;
     }
@@ -253,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     profile,
     role,
+    userId: profile?.ID ? String(profile.ID) : null,
     loading,
     profileError,
     signIn,

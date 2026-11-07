@@ -1,0 +1,4 @@
+escenario,vus,avg_ms,p95_ms,max_ms,tasa_errores_pct,rps
+base,1,152.3,179.32,629.52,0,0.88
+normal,10,132.21,148.73,416.55,0,8.74
+pico,30,132.06,153.92,439.26,0,26.18

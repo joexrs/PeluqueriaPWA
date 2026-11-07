@@ -67,6 +67,9 @@ export interface VentaCita {
   id: string;
   citaId: string;
   clienteNombre: string;
+  clienteDni?: string | null;
+  clienteTelefono?: string | null;
+  cajeroNombre?: string | null;
   servicios: Array<{ id: string; nombre: string; precio: number; duracion: number; descuentoPorcentaje?: number }>;
   productos: Array<{ id: string; nombre: string; cantidad: number; precioUnitario: number }>;
   metodoPago: MetodoPago | null;
